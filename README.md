@@ -24,15 +24,16 @@ Urdu instead: a person wrote every gold answer.
 
 | Task | Rows | Input | Gold answer | Source |
 |---|---|---|---|---|
-| `cloze` | 38,667 | a human sentence with one content word masked | the masked word | Urdu Wikipedia |
-| `correction` | 30,000 | the same sentence with one deliberate typist error | the human sentence | Urdu Wikipedia |
-| `translit_ur2roman` | 17,231 | an Urdu word | its most-attested human romanisation | Dakshina lexicon |
-| `translit_roman2ur` | 14,102 | a Roman Urdu word | the Urdu word, mutual-best pairing only | Dakshina lexicon |
+| `cloze` | 32,190 | a human sentence with one content word masked | the masked word | Urdu Wikipedia |
+| `correction` | 25,000 | the same sentence with one deliberate typist error | the human sentence | Urdu Wikipedia |
+| `headline` | 15,810 | a section of an article | the section's own heading | full Urdu Wikipedia dump |
+| `translit_ur2roman` | 15,000 | an Urdu word | its most-attested human romanisation | Dakshina lexicon |
+| `translit_roman2ur` | 12,000 | a Roman Urdu word | the Urdu word, mutual-best pairing only | Dakshina lexicon |
 
-- **100,000 rows, 85,898 source documents, 100,000 distinct prompts.**
-- Splits **90,155 / 6,923 / 2,922** (train/val/test), assigned by hashing the *source document*, so no
+- **100,000 rows, 87,996 source documents, 100,000 distinct prompts.**
+- Splits **90,016 / 7,008 / 2,976** (train/val/test), assigned by hashing the *source document*, so no
   sentence contributes to two splits. Verified: 0 documents in two splits.
-- `target_human_share 1.0` — every gold answer is human text. `input_human_share 0.70` — the correction
+- `target_human_share 1.0` — every gold answer is human text. `input_human_share 0.75` — the correction
   task's inputs are machine-corrupted, and say so per row.
 - Plus `eval_dakshina_sentences.jsonl`: 15,436 **evaluation-only** sentence-level transliteration rows,
   kept out of the splits because they are Dakshina's own held-out set.
@@ -57,6 +58,11 @@ OUT: لکھنئو میں انہوں نے مشہور حکیم علی حسین س�
 IN : عثمانی شام (Ottoman Syria) سے مراد سلطنت عثمنایہ کا سرزمین شام کا حصہ ہے ...
 OUT: عثمانی شام (Ottoman Syria) سے مراد سلطنت عثمانیہ کا سرزمین شام کا حصہ ہے ...
 
+[headline]
+IN : الجزائر کا زیادہ تر ساحلی علاقہ پتھریلا اور چٹانی ہے اور کہیں کہیں پہاڑ بھی ملتے ہیں۔ تاہم
+     یہاں کئی قدرتی بندرگاہیں بھی موجود ہیں۔ ساحل سے لے کر اطلس التلی تک کا علاقہ زرخیز ہے ...
+OUT: جغرافیہ
+
 [translit_ur2roman]
 IN : ہسپتال        OUT: haspataal     accepted_outputs: haspataal, hospital, haspatal, ...
 [translit_roman2ur]
@@ -73,12 +79,16 @@ uv run pytest -q
 
 `build` writes `train/val/test.jsonl`, the eval file, and `stats.json`. `verify` re-reads what was
 written, re-derives every check from the row itself, ignores the builder's `verified` flag, and exits
-non-zero on any failure. 19 tests, all passing.
+non-zero on any failure. 26 tests, all passing.
+
+The `headline` task needs the full dump (`urwiki-latest-pages-articles.xml.bz2`, 476,815,422 bytes,
+`bzip2 -t` verified). A single connection to it was throttled to ~21 KB/s here; the same file served
+ranged chunks at ~585 KB/s, so `scripts/range_fetch.sh` fetches it 8 MB at a time.
 
 ## Problems hit while building this
 
-Seven defects, each found by a measurement rather than by inspection of the code, all written up with
-their numbers in [`docs/DEFECTS.md`](docs/DEFECTS.md). The three worth naming here:
+Nine defects, each found by a measurement rather than by inspection of the code, all written up with
+their numbers in [`docs/DEFECTS.md`](docs/DEFECTS.md). The ones worth naming here:
 
 1. **Dakshina's Urdu sentence pairs are its own eval set** — 9,631 of 9,759 sentences are in the dev and
    test files, and the 176k word alignments come from those same sentences. Training on them would have
@@ -88,6 +98,11 @@ their numbers in [`docs/DEFECTS.md`](docs/DEFECTS.md). The three worth naming he
    Ownership is now decided by the sentence's content hash.
 3. **Generated census lines produce identical prompts with different gold answers.** Exact-sentence
    deduplication cannot see them, because each sentence is unique; a template frame can.
+4. **The two Wikipedia extracts overlap.** The sentence tasks come from a filtered extract, the section
+   task from the full dump, so 1,977 sentences sat inside a section body — 380 of them in a different
+   split. It took four fixes to reach zero, because each one was applied at the wrong granularity or in
+   the wrong pass: sentence-level exclusion (111 left), first-window-only (14 left), all windows but not
+   in the top-up pass (6 left), then windows on both sides (0). The check now lives in `verify`.
 
 A fourth is mine rather than the data's: the first orthography filter listed ؤ and ئ as Arabic-only
 forms. They are ordinary Urdu letters, and the filter would have thrown away a large share of correct
@@ -100,7 +115,9 @@ Urdu. Reverted the same day.
   or single-space errors of kinds Urdu typists do make, and every such row is flagged `input_human: false`.
 - It has no sentence-level transliteration *training* data, because the only human source for that is
   Dakshina's held-out set.
-- It does not yet carry the summarisation (`headline`) task. That needs the full Urdu Wikipedia dump,
-  which the current connection is serving at ~10 KB/s; the download resumes rather than restarts.
+- The `headline` task is section-heading prediction, not article-title prediction: an Urdu Wikipedia
+  lead almost always opens with the title verbatim, so title prediction would be a copy task. 10,218
+  candidates were rejected for having the heading verbatim in the body, and 5,314 more for having most
+  of the heading's content words in it.
 - It is not yet a product. The desk UI is built against this corpus next, and no model has been trained
   on it — the GPU belongs to other work.

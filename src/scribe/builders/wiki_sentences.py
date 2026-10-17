@@ -29,7 +29,7 @@ import random
 from pathlib import Path
 
 from ..schema import Row, nfc
-from ..urdu import maskable_indices, usable_sentence, words
+from ..urdu import maskable_indices, usable_sentence, window_keys, words
 
 MASK = "____"
 INSTR_CLOZE = f"خالی جگہ ({MASK}) میں مناسب لفظ لکھیں۔ صرف وہی لفظ لکھیں۔"
@@ -103,6 +103,8 @@ def iter_sentences(
     max_repeats: int = 3,
     max_per_template: int = 3,
     template_counts: dict[str, int] | None = None,
+    exclude: set[str] | None = None,
+    exclude_windows: set[str] | None = None,
 ):
     """Yield (line number, sentence) for usable, non-boilerplate, de-duplicated sentences.
 
@@ -120,6 +122,10 @@ def iter_sentences(
                 continue
             if pool is not None and pool_of(s) != pool:
                 continue
+            if exclude is not None and s in exclude:
+                continue  # already used by another task (see build.py)
+            if exclude_windows and (window_keys(s) & exclude_windows):
+                continue  # this passage is already inside another task's text
             if freq is not None and freq.get(s, 0) > max_repeats:
                 continue  # template / maintenance notice
             if s in emitted:
@@ -133,11 +139,20 @@ def iter_sentences(
 
 
 def cloze_rows(
-    gz_path: Path, *, limit: int | None = None, seed: int = 20261017, pool: int | None = 0, freq=None
+    gz_path: Path,
+    *,
+    limit: int | None = None,
+    seed: int = 20261017,
+    pool: int | None = 0,
+    freq=None,
+    exclude: set[str] | None = None,
+    exclude_windows: set[str] | None = None,
 ):
     rng = random.Random(seed)
     made = 0
-    for lineno, sent in iter_sentences(gz_path, pool=pool, freq=freq):
+    for lineno, sent in iter_sentences(
+        gz_path, pool=pool, freq=freq, exclude=exclude, exclude_windows=exclude_windows
+    ):
         if limit is not None and made >= limit:
             return
         toks = words(sent)
@@ -205,12 +220,21 @@ def _corrupt(sent: str, rng: random.Random) -> tuple[str, str] | None:
 
 
 def correction_rows(
-    gz_path: Path, *, limit: int | None = None, seed: int = 20261017, pool: int | None = 1, freq=None
+    gz_path: Path,
+    *,
+    limit: int | None = None,
+    seed: int = 20261017,
+    pool: int | None = 1,
+    freq=None,
+    exclude: set[str] | None = None,
+    exclude_windows: set[str] | None = None,
 ):
     """Correction items, over whichever half of the corpus ``keep`` admits."""
     rng = random.Random(seed + 1)
     made = 0
-    for lineno, sent in iter_sentences(gz_path, pool=pool, freq=freq):
+    for lineno, sent in iter_sentences(
+        gz_path, pool=pool, freq=freq, exclude=exclude, exclude_windows=exclude_windows
+    ):
         if limit is not None and made >= limit:
             return
         got = _corrupt(sent, rng)

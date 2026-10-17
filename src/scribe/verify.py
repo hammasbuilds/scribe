@@ -19,7 +19,15 @@ import collections
 import json
 from pathlib import Path
 
-from .urdu import LATIN, is_urdu_word, strip_marks, urdu_share, usable_sentence, words
+from .urdu import (
+    LATIN,
+    is_urdu_word,
+    strip_marks,
+    urdu_share,
+    usable_sentence,
+    window_keys,
+    words,
+)
 
 MASK = "____"
 SPLIT_FILES = ("train", "val", "test")
@@ -92,11 +100,31 @@ def check_translit(r) -> str | None:
     return None
 
 
+def check_headline(r) -> str | None:
+    """A section-heading item is only a task if the heading is not in the prompt."""
+    if r["output"] in r["input"]:
+        return "heading_verbatim_in_body"
+    hc = {w for w in words(r["output"]) if is_urdu_word(w) and len(w) >= 3}
+    if not hc:
+        return "heading_has_no_content_words"
+    bc = {w for w in words(r["input"]) if is_urdu_word(w) and len(w) >= 3}
+    if len(hc & bc) / len(hc) > 0.5:
+        return "heading_words_mostly_in_body"
+    if not (1 <= len(words(r["output"])) <= 6):
+        return "heading_length"
+    if len(words(r["input"])) < 30:
+        return "body_too_short"
+    if urdu_share(r["input"]) < 0.80:
+        return "body_not_urdu"
+    return None
+
+
 CHECKS = {
     "cloze": check_cloze,
     "correction": check_correction,
     "translit_ur2roman": check_translit,
     "translit_roman2ur": check_translit,
+    "headline": check_headline,
 }
 
 
@@ -135,6 +163,32 @@ def audit(rows) -> dict:
         if d.startswith("urwiki") and {"cloze", "correction"} <= t
     )
 
+    # The section task and the sentence tasks draw on the same Wikipedia through two
+    # differently segmented extracts, so a section body can contain a sentence another
+    # task already used. This check found that leak (1,977 cases, 380 across a split)
+    # and stays here so a future builder change cannot reintroduce it unnoticed.
+    body_windows: set[str] = set()
+    body_window_split: dict[str, set[str]] = collections.defaultdict(set)
+    for r in rows:
+        if r["task"] == "headline":
+            keys = window_keys(r["input"])
+            body_windows |= keys
+            for k in keys:
+                body_window_split[k].add(r["_split"])
+    overlap = overlap_cross_split = 0
+    for r in rows:
+        if r["task"] == "cloze":
+            source = r["input"].replace(MASK, r["output"], 1)
+        elif r["task"] == "correction":
+            source = r["output"]
+        else:
+            continue
+        shared = window_keys(source) & body_windows
+        if shared:
+            overlap += 1
+            if any(r["_split"] not in body_window_split[k] for k in shared):
+                overlap_cross_split += 1
+
     ids = collections.Counter(r["row_id"] for r in rows)
     return {
         "rows_read": len(rows),
@@ -147,6 +201,8 @@ def audit(rows) -> dict:
         "identical_input_in_two_splits": input_in_two_splits,
         "documents_in_two_splits": doc_in_two_splits,
         "wiki_sentences_feeding_both_cloze_and_correction": wiki_shared,
+        "sentences_also_inside_a_headline_body": overlap,
+        "sentences_inside_a_headline_body_in_another_split": overlap_cross_split,
         "distinct_inputs": len(by_input),
     }
 
@@ -170,6 +226,7 @@ def main(argv=None) -> int:
         + report["duplicate_row_ids"]
         + report["documents_in_two_splits"]
         + report["wiki_sentences_feeding_both_cloze_and_correction"]
+        + report["sentences_also_inside_a_headline_body"]
     )
     return 0 if bad == 0 else 1
 

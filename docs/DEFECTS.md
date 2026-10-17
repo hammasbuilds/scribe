@@ -79,6 +79,41 @@ task and the right answer in another.
 in that set: they are ordinary Urdu letters (کوئی, ہوئے), and excluding them would discard a large share
 of correct Urdu. That mistake was made and reverted during this build.
 
+### 8. Article-title summarisation would have been a copy task
+
+The obvious summarisation pair is lead paragraph → article title. In Urdu Wikipedia a lead almost always
+opens with the title verbatim ("فیصل آباد ایک شہر ہے..."), so a model scores well by extracting the first
+noun phrase and nothing about summarisation is measured.
+
+**Fix:** the task is **section heading** prediction instead — a human-written abstraction over a section
+that usually does not appear in it. Triviality is then checked rather than assumed: **10,218** candidates
+were rejected for the heading appearing verbatim in the body, and **5,314** more for more than half of the
+heading's content words appearing in it. Two further filters came out of reading the samples: bullet-list
+sections (**11,274** rejected, plus 69 inline lists) and `زمرہ:` category markup surviving the cleaner.
+
+The list filter was itself broken when first written. `clean_wikitext` stripped the list markers *before*
+`list_share` measured them, so the check ran on text with no markers in it and rejected 3 sections out of
+11,000. Moving the measurement before the stripping took it to 821 in the same sample.
+
+### 9. The two Wikipedia extracts overlap, and it took four fixes to close
+
+The sentence tasks read Dakshina's filtered extract; the section task reads the full dump. Same
+encyclopaedia, so a section body can contain a sentence another task already used:
+**1,977 sentences, 380 of them in a different split** — a cloze answer sitting in a test-set body.
+
+Each fix was correct about the leak and wrong about where to apply it:
+
+| Fix | Overlap left | Cross-split left | Why it was not enough |
+|---|---|---|---|
+| exclude the sentence tasks' sentences from section bodies, matched sentence-to-sentence | 111 | 24 | the two extracts segment sentences differently: the text matches, the boundaries do not |
+| match on the first 8-word window instead | 14 | 4 | the extracts do not start a sentence in the same place either |
+| index every 8-word window of every excluded sentence | 6 | 4 | all six were from the **top-up pass**, which ran after the sections were emitted |
+| exclude by window in the top-up pass too | **0** | **0** | — |
+
+**Fix:** `window_keys` in `urdu.py`, used by both wiki builders, and the measurement itself is now a
+check in `scribe.verify` (`sentences_also_inside_a_headline_body`) with two tests asserting it fires.
+A one-off probe found this leak; leaving it as a probe would have let the next builder change restore it.
+
 ## Standing limits, not fixed
 
 | Limit | Why it stays | How it is disclosed |
@@ -86,7 +121,8 @@ of correct Urdu. That mistake was made and reverted during this build.
 | Correction inputs are machine-corrupted, not found errors | No public corpus of real Urdu typing errors at this scale exists without a budget | `input_human: false` per row, `input_human_share` in stats, error type per row |
 | Formulaic collocations make easy cloze items (`محمد صلی ____ علیہ وسلم` → اللہ) | They are genuine Urdu text, and removing religious and fixed phrases would distort the register | Per-item position and length in `meta`; a difficulty split is future work |
 | Word-level transliteration dominates the transliteration tasks | The only non-contaminated Dakshina source is the word lexicon | `meta.level` is `word` on every such row; sentence level exists only in the eval file |
-| Register skews encyclopaedic | Source is Wikipedia | `by_corpus` in stats; a news/literature slice is planned for v1.1 |
+| Register skews encyclopaedic | Source is Wikipedia | `by_corpus` in stats; a news and literature slice is still future work |
+| Section headings are short and sometimes generic even after filtering (`تاریخ`, `جغرافیہ`) | They are what the writer chose, and a stricter filter would keep only unusual headings | 1,258,108 navigational headings rejected by name; at most 40 sections per heading |
 | Exotic punctuation (e.g. a Syriac full stop) survives the sentence filter | Rare and harmless to the task | Noted here; not filtered |
 
 ## Why the clean verifier report should be believed
@@ -98,13 +134,15 @@ ignores the builder's own `verified` flag. It reports:
 rows_read 100000 | rows_checked 100000 | failures {} | failure_rate 0.0
 duplicate_row_ids 0 | identical_input_in_two_splits 0 | documents_in_two_splits 0
 wiki_sentences_feeding_both_cloze_and_correction 0 | distinct_inputs 100000
+sentences_also_inside_a_headline_body 0 | ..._in_another_split 0
 ```
 
 A 0.000 failure rate is normally a smell, so `tests/test_verify_sensitivity.py` plants one defect of
 each known kind — no mask, two masks, an answer still visible in the prompt, a non-Urdu answer, a
 two-edit "single" correction, a `space_split` that did not split, a corrupted input claiming to be
-human, Latin in the Urdu side, Urdu in the Roman side, a swapped direction — and asserts the matching
-check names it. 19 tests, all passing. Two of those tests initially failed because *my expectations*
+human, Latin in the Urdu side, Urdu in the Roman side, a swapped direction, a heading sitting in its
+own body, and a sentence shared between a section body and a cloze item in another split — and asserts
+the matching check names it. 26 tests, all passing. Two of those tests initially failed because *my expectations*
 were wrong about which check fires first, not the checks.
 
 `rows_unchecked_no_check_defined` is printed on every run: a task with no check would show up as rows

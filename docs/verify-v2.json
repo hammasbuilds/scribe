@@ -3,10 +3,11 @@
   "rows_checked": 100000,
   "rows_unchecked_no_check_defined": {},
   "checked_per_task": {
-    "translit_ur2roman": 17231,
-    "translit_roman2ur": 14102,
-    "cloze": 38667,
-    "correction": 30000
+    "translit_ur2roman": 15000,
+    "translit_roman2ur": 12000,
+    "cloze": 32190,
+    "correction": 25000,
+    "headline": 15810
   },
   "failures": {},
   "failure_rate": 0.0,
@@ -14,5 +15,7 @@
   "identical_input_in_two_splits": 0,
   "documents_in_two_splits": 0,
   "wiki_sentences_feeding_both_cloze_and_correction": 0,
+  "sentences_also_inside_a_headline_body": 0,
+  "sentences_inside_a_headline_body_in_another_split": 0,
   "distinct_inputs": 100000
 }

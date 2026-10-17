@@ -125,3 +125,90 @@ def test_reverse_direction_checks_the_right_side():
     assert check_translit(ok) is None
     swapped = {"task": "translit_roman2ur", "input": "کتاب", "output": "kitaab"}
     assert check_translit(swapped) is not None
+
+
+# --- headline (section heading) ---------------------------------------------
+
+BODY = (
+    "الجزائر کا زیادہ تر ساحلی علاقہ پتھریلا اور چٹانی ہے اور کہیں کہیں پہاڑ بھی ملتے ہیں۔ "
+    "تاہم یہاں کئی قدرتی بندرگاہیں بھی موجود ہیں۔ ساحل سے لے کر اطلس التلی تک کا علاقہ زرخیز "
+    "ہے اور اس کے بعد گھاس کے وسیع میدان شروع ہو جاتے ہیں جو مشرقی حصے تک پھیلے ہوئے ہیں۔"
+)
+
+
+def headline_row(**over):
+    row = {"task": "headline", "input": BODY, "output": "محل وقوع"}
+    row.update(over)
+    return row
+
+
+def test_good_headline_passes():
+    from scribe.verify import check_headline
+
+    assert check_headline(headline_row()) is None
+
+
+@pytest.mark.parametrize(
+    "over,expected",
+    [
+        # The heading sitting in the prompt is the defect that turns this task into copying.
+        ({"output": "ساحلی علاقہ"}, "heading_verbatim_in_body"),
+        ({"output": "اطلس التلی میدان"}, "heading_words_mostly_in_body"),
+        ({"output": "محل وقوع اور جغرافیائی حدود اربعہ کی تفصیل مکمل"}, "heading_length"),
+        ({"input": "الجزائر کا ساحل پتھریلا ہے۔"}, "body_too_short"),
+    ],
+)
+def test_headline_defects_are_caught(over, expected):
+    from scribe.verify import check_headline
+
+    assert check_headline(headline_row(**over)) == expected
+
+
+# --- cross-extract leakage (the audit-level check) --------------------------
+
+
+def _rows_for_audit(cloze_split="test"):
+    """A headline row in train, and a cloze row whose source sits in that body."""
+    body = BODY
+    first = " ".join(body.split()[:12])
+    return [
+        {
+            "task": "headline",
+            "input": body,
+            "output": "محل وقوع",
+            "doc_id": "urwiki-sec:aaaa",
+            "row_id": "a1",
+            "_split": "train",
+            "input_human": True,
+            "meta": {},
+        },
+        {
+            "task": "cloze",
+            "input": first.replace(first.split()[3], "____", 1),
+            "output": first.split()[3],
+            "doc_id": "urwiki-sent:bbbb",
+            "row_id": "b1",
+            "_split": cloze_split,
+            "input_human": True,
+            "meta": {},
+        },
+    ]
+
+
+def test_audit_catches_a_sentence_inside_a_headline_body():
+    """The leak that cost four rebuilds must fail the audit, not just the probe."""
+    from scribe.verify import audit
+
+    report = audit(_rows_for_audit(cloze_split="test"))
+    assert report["sentences_also_inside_a_headline_body"] == 1
+    assert report["sentences_inside_a_headline_body_in_another_split"] == 1
+
+
+def test_audit_is_clean_when_the_passage_is_not_shared():
+    from scribe.verify import audit
+
+    rows = _rows_for_audit()
+    rows[1]["input"] = "یہ ایک بالکل مختلف جملہ ہے جس کا متن کسی اور ____ سے لیا گیا ہے۔"
+    rows[1]["output"] = "مضمون"
+    report = audit(rows)
+    assert report["sentences_also_inside_a_headline_body"] == 0

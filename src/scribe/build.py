@@ -25,7 +25,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from .builders import dakshina, wiki_sentences
+from .builders import dakshina, wiki_sections, wiki_sentences
 from .schema import TASKS
 
 # Share caps, checked against the achieved total. No task may dominate: a
@@ -37,12 +37,15 @@ from .schema import TASKS
 #   distinct usable non-boilerplate wiki sentences    : 353,754 -> split between
 #                                                       cloze and correction
 # ur2roman is therefore capped at its ceiling and the wiki tasks absorb the rest.
+# Measured pools (2026-10-17): ur2roman 17,593; roman2ur 14,055 mutual-best;
+# wiki sentences 353,754 distinct non-boilerplate; section headings ~0.157 usable
+# per article over a 5,000-article sample.
 CAPS = {
-    "translit_ur2roman": 0.175,
-    "translit_roman2ur": 0.15,
-    "cloze": 0.375,
-    "correction": 0.30,
-    "headline": 0.25,  # builder lands with the full dump; 0 until then
+    "translit_ur2roman": 0.15,
+    "translit_roman2ur": 0.12,
+    "cloze": 0.28,
+    "correction": 0.25,
+    "headline": 0.20,
 }
 
 # A pool can come in under its cap - the stricter mutual-best rule for reverse
@@ -56,6 +59,9 @@ SPLITS = (("train", 0.90), ("val", 0.07), ("test", 0.03))
 
 DEFAULT_DAKSHINA = Path("D:/github/urdu-nlp-toolkit/data/dakshina/ur")
 DEFAULT_WIKI_GZ = DEFAULT_DAKSHINA / "native_script_wikipedia" / "ur.wiki-filt.train.text.shuf.txt.gz"
+DEFAULT_DUMP = Path(
+    "C:/d drive data/scribe-100k/raw/urwiki/urwiki-latest-pages-articles.xml.bz2"
+)
 
 
 def split_of(doc_id: str) -> str:
@@ -73,7 +79,7 @@ def split_of(doc_id: str) -> str:
     return SPLITS[-1][0]
 
 
-def build(target: int, dakshina_root: Path, wiki_gz: Path):
+def build(target: int, dakshina_root: Path, wiki_gz: Path, dump: Path | None = None):
     budget = {task: int(target * CAPS[task]) for task in TASKS}
     rows, seen, prompts = [], set(), set()
     seen_counts: collections.Counter = collections.Counter()
@@ -107,12 +113,42 @@ def build(target: int, dakshina_root: Path, wiki_gz: Path):
     boilerplate = {s: n for s, n in freq.items() if n > 3}
 
     # Disjoint sentence pools, decided by the sentence's content hash (see pool_of).
+    # The sentence tasks run before the section task so their sources can be excluded
+    # from section bodies: both draw on the same Wikipedia.
     produced["wiki_cloze"] = take(
         wiki_sentences.cloze_rows(wiki_gz, pool=0, freq=freq), "wiki_cloze"
     )
     produced["wiki_correction"] = take(
         wiki_sentences.correction_rows(wiki_gz, pool=1, freq=freq), "wiki_correction"
     )
+
+    def sentence_sources() -> set[str]:
+        """The wiki sentence behind every sentence-task row emitted so far."""
+        out = set()
+        for r in rows:
+            if r.task == "cloze":
+                out.add(r.input.replace(wiki_sentences.MASK, r.output, 1))
+            elif r.task == "correction":
+                out.add(r.output)
+        return out
+
+    section_rejects: collections.Counter = collections.Counter()
+    body_windows: set[str] = set()
+    if dump is not None and dump.exists():
+        produced["wiki_sections"] = take(
+            wiki_sections.section_rows(
+                dump, rejected=section_rejects, exclude_sentences=sentence_sources()
+            ),
+            "wiki_sections",
+        )
+        # Anything the top-up pass adds must avoid the bodies just emitted - by
+        # window, not by sentence. Excluding sentences here let 6 topped-up cloze
+        # rows back into section bodies, 4 of them across a split.
+        from .urdu import window_keys
+
+        for r in rows:
+            if r.task == "headline":
+                body_windows.update(window_keys(r.input))
     # Top-up pass: fill any shortfall from the wiki pools, which are large enough
     # to absorb it, without letting either exceed its hard ceiling.
     topped_up = {}
@@ -126,10 +162,13 @@ def build(target: int, dakshina_root: Path, wiki_gz: Path):
         budget[task] += min(shortfall, room)
         fn = wiki_sentences.cloze_rows if task == "cloze" else wiki_sentences.correction_rows
         pool = 0 if task == "cloze" else 1
-        topped_up[task] = take(fn(wiki_gz, pool=pool, freq=freq), f"topup_{task}")
+        topped_up[task] = take(
+            fn(wiki_gz, pool=pool, freq=freq, exclude_windows=body_windows), f"topup_{task}"
+        )
     produced["topped_up"] = topped_up
 
     corpus = {
+        "section_candidates_rejected": dict(section_rejects.most_common()),
         "wiki_usable_sentence_instances": sum(freq.values()),
         "wiki_distinct_usable_sentences": len(freq),
         "wiki_boilerplate_sentences_dropped": len(boilerplate),
@@ -200,10 +239,11 @@ def main(argv=None) -> int:
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--dakshina", type=Path, default=DEFAULT_DAKSHINA)
     ap.add_argument("--wiki-gz", type=Path, default=DEFAULT_WIKI_GZ)
+    ap.add_argument("--dump", type=Path, default=DEFAULT_DUMP)
     args = ap.parse_args(argv)
 
     args.out.mkdir(parents=True, exist_ok=True)
-    rows, produced, seen, corpus = build(args.target, args.dakshina, args.wiki_gz)
+    rows, produced, seen, corpus = build(args.target, args.dakshina, args.wiki_gz, args.dump)
 
     handles = {name: (args.out / f"{name}.jsonl").open("w", encoding="utf-8", newline="\n") for name, _ in SPLITS}
     try:

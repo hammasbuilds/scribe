@@ -1,0 +1,133 @@
+{
+  "rows": 100000,
+  "target": 100000,
+  "source_documents": 87996,
+  "unique_row_ids": 100000,
+  "verified_rows": 100000,
+  "target_human_share": 1.0,
+  "input_human_share": 0.75,
+  "by_task": {
+    "translit_ur2roman": 15000,
+    "translit_roman2ur": 12000,
+    "cloze": 32190,
+    "correction": 25000,
+    "headline": 15810
+  },
+  "achieved_share_vs_cap": {
+    "translit_ur2roman": {
+      "share": 0.15,
+      "cap": 0.15,
+      "ceiling": 0.15,
+      "within_ceiling": true
+    },
+    "translit_roman2ur": {
+      "share": 0.12,
+      "cap": 0.12,
+      "ceiling": 0.12,
+      "within_ceiling": true
+    },
+    "cloze": {
+      "share": 0.3219,
+      "cap": 0.28,
+      "ceiling": 0.42,
+      "within_ceiling": true
+    },
+    "correction": {
+      "share": 0.25,
+      "cap": 0.25,
+      "ceiling": 0.34,
+      "within_ceiling": true
+    },
+    "headline": {
+      "share": 0.1581,
+      "cap": 0.2,
+      "ceiling": 0.2,
+      "within_ceiling": true
+    }
+  },
+  "by_split": {
+    "train": 90016,
+    "val": 7008,
+    "test": 2976
+  },
+  "by_split_share": {
+    "train": 0.9002,
+    "val": 0.0701,
+    "test": 0.0298
+  },
+  "split_doc_overlap": {
+    "documents_in_multiple_splits": 0,
+    "examples": []
+  },
+  "by_corpus": {
+    "dakshina": 27000,
+    "urwiki-dakshina-filt": 57190,
+    "urwiki": 15810
+  },
+  "corpus_pool": {
+    "section_candidates_rejected": {
+      "heading_generic": 1258108,
+      "body_length": 352644,
+      "body_not_urdu": 39245,
+      "body_not_prose": 29020,
+      "body_is_a_list": 11274,
+      "heading_not_urdu": 11252,
+      "heading_quota_reached": 11185,
+      "heading_verbatim_in_body": 9187,
+      "heading_no_urdu_word": 5643,
+      "heading_length": 5438,
+      "heading_words_mostly_in_body": 4692,
+      "body_contains_a_sentence_used_by_another_task": 4501,
+      "body_is_an_inline_list": 69,
+      "heading_no_content_words": 11
+    },
+    "wiki_usable_sentence_instances": 361986,
+    "wiki_distinct_usable_sentences": 353937,
+    "wiki_boilerplate_sentences_dropped": 183,
+    "wiki_boilerplate_instances_dropped": 2860,
+    "wiki_boilerplate_max_repeats": 693,
+    "wiki_boilerplate_threshold": 3
+  },
+  "candidates_seen_per_builder": {
+    "dakshina_lexicon": 31333,
+    "wiki_cloze": 171651,
+    "wiki_cloze:duplicate_prompt_or_row": 2,
+    "wiki_correction": 170705,
+    "wiki_sections": 15847,
+    "wiki_sections:duplicate_prompt_or_row": 37,
+    "topup_cloze": 167369,
+    "topup_cloze:duplicate_prompt_or_row": 28002
+  },
+  "rows_per_builder": {
+    "dakshina_lexicon": 27000,
+    "wiki_cloze": 28000,
+    "wiki_correction": 25000,
+    "wiki_sections": 15810,
+    "topped_up": {
+      "cloze": 4190
+    }
+  },
+  "correction_error_types": {
+    "confusion:ا->آ": 1919,
+    "space_split": 7108,
+    "confusion:ی->ے": 3316,
+    "transpose": 8991,
+    "confusion:ے->ی": 1557,
+    "confusion:ھ->ہ": 612,
+    "confusion:ک->ك": 154,
+    "confusion:ہ->ھ": 1247,
+    "confusion:ں->ن": 85,
+    "confusion:آ->ا": 11
+  },
+  "eval_only_rows": 15436,
+  "dakshina_heldout_sentences": 9631,
+  "caps": {
+    "translit_ur2roman": 0.15,
+    "translit_roman2ur": 0.12,
+    "cloze": 0.28,
+    "correction": 0.25,
+    "headline": 0.2
+  },
+  "licence": "CC BY-SA 4.0 (inherited from Dakshina and Urdu Wikipedia)",
+  "model_in_label_path": false
+}

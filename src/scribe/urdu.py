@@ -116,3 +116,20 @@ def maskable_indices(toks: list[str]) -> list[int]:
             continue
         out.append(i)
     return out
+
+
+WINDOW = 8
+
+
+def window_keys(text: str) -> set[str]:
+    """Every WINDOW-word window of a text.
+
+    Used to decide whether two differently segmented extracts of the same
+    Wikipedia contain the same passage. Sentence-level comparison fails for that:
+    the text matches, the boundaries do not.
+    """
+    toks = words(text)
+    if len(toks) < WINDOW:
+        return {" ".join(toks)} if toks else set()
+    return {" ".join(toks[i : i + WINDOW]) for i in range(len(toks) - WINDOW + 1)}
+
