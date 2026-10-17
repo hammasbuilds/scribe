@@ -76,6 +76,19 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
   background:var(--bg);font-size:14px}
 .note{margin-top:10px;font-size:13px;color:var(--muted);border-left:3px solid var(--line);padding-left:10px}
 .err{color:var(--bad)}
+.verdict{display:inline-block;font-size:12.5px;font-weight:600;border-radius:999px;padding:3px 11px;
+  margin-top:10px}
+.verdict.hit{background:#dff3e6;color:#14532d}
+.verdict.miss{background:#fdecec;color:#7f1d1d}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .verdict.hit{background:#14301f;color:#86efac}
+  :root:not([data-theme="light"]) .verdict.miss{background:#331b1b;color:#fca5a5}}
+:root[data-theme="dark"] .verdict.hit{background:#14301f;color:#86efac}
+:root[data-theme="dark"] .verdict.miss{background:#331b1b;color:#fca5a5}
+ins{background:#dff3e6;text-decoration:none;border-radius:4px;padding:0 3px}
+del{background:#fdecec;text-decoration:line-through;border-radius:4px;padding:0 3px;opacity:.75}
+.copy{font-size:11.5px;padding:3px 9px;border-radius:7px;border:1px solid var(--line);
+  background:var(--bg);color:var(--muted);cursor:pointer;float:right}
+.copy:hover{color:var(--ink)}
 .hidden{display:none}
 footer{color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding:16px 0;background:var(--panel)}
 .themebtn{margin-left:8px}
@@ -121,8 +134,10 @@ footer{color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padd
       </div>
     </div>
     <div class="card">
-      <h2>Output</h2>
+      <h2>Output <button class="copy" id="copy">Copy</button></h2>
       <div class="answer urdu" id="answer">—</div>
+      <div id="verdict"></div>
+      <div id="changed"></div>
       <div class="meter"><i id="conf" style="width:0%"></i></div>
       <div class="meta" id="meta"></div>
       <div id="alts"></div>
@@ -157,7 +172,9 @@ footer{color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padd
 </main>
 
 <footer><div class="wrap">
-  Scribe · corpus licensed CC BY-SA 4.0 (Dakshina, Urdu Wikipedia) · answers show their own evidence
+  Scribe · CC BY-SA 4.0 (built on Dakshina and Urdu Wikipedia) · answers show their own evidence ·
+  <a href="https://www.kaggle.com/datasets/muhammadhammas13/scribe-100k" target="_blank"
+  rel="noopener">scribe-100k on Kaggle</a>
 </div></footer>
 
 <script>
@@ -176,6 +193,8 @@ const TASKS = {
             seed:"الجزائر کا زیادہ تر ساحلی علاقہ پتھریلا اور چٹانی ہے اور کہیں کہیں پہاڑ بھی ملتے ہیں۔ تاہم یہاں کئی قدرتی بندرگاہیں بھی موجود ہیں۔ ساحل سے لے کر اطلس التلی تک کا علاقہ زرخیز ہے۔"}
 };
 let current = "correct";
+let gold = null;   // the held-out answer, when an example is loaded
+let lastInput = "";
 const $ = (id) => document.getElementById(id);
 
 async function post(url, body){
@@ -206,6 +225,7 @@ function showTab(tab){
     $("input").classList.toggle("urdu", t.rtl);
     $("input").value = t.seed || "";
     $("gold").textContent = "";
+    gold = null;
     resetOutput();
   }
   if(tab === "dataset") loadDataset();
@@ -218,8 +238,70 @@ function resetOutput(){
   $("meta").innerHTML = "";
   $("alts").innerHTML = "";
   $("note").classList.add("hidden");
+  $("verdict").innerHTML = "";
+  $("changed").innerHTML = "";
   $("evidence").classList.add("hidden");
   $("evlist").innerHTML = "";
+}
+
+
+// A word-level diff, so a correction shows which word moved rather than making
+// the reader compare two lines of Urdu by eye.
+function diffWords(before, after){
+  const a = before.split(/\s+/).filter(Boolean), b = after.split(/\s+/).filter(Boolean);
+  const out = document.createElement("div");
+  out.className = "note urdu";
+  let i = 0, j = 0;
+  while(i < a.length || j < b.length){
+    if(i < a.length && j < b.length && a[i] === b[j]){
+      out.appendChild(document.createTextNode(a[i] + " ")); i++; j++; continue;
+    }
+    // Look ahead a little: a single substitution, insertion or deletion covers
+    // almost every edit this desk makes.
+    const nextMatchB = b.indexOf(a[i], j);
+    const nextMatchA = a.indexOf(b[j], i);
+    if(i < a.length && (nextMatchB === -1 || (nextMatchA !== -1 && nextMatchA <= nextMatchB))){
+      const d = document.createElement("del"); d.textContent = a[i]; out.appendChild(d);
+      out.appendChild(document.createTextNode(" ")); i++;
+    }
+    if(j < b.length && (nextMatchA === -1 || (nextMatchB !== -1 && nextMatchB < nextMatchA))){
+      const n = document.createElement("ins"); n.textContent = b[j]; out.appendChild(n);
+      out.appendChild(document.createTextNode(" ")); j++;
+    }
+    if(i >= a.length && j < b.length){
+      const n = document.createElement("ins"); n.textContent = b[j]; out.appendChild(n);
+      out.appendChild(document.createTextNode(" ")); j++;
+    }
+    if(j >= b.length && i < a.length){
+      const d = document.createElement("del"); d.textContent = a[i]; out.appendChild(d);
+      out.appendChild(document.createTextNode(" ")); i++;
+    }
+  }
+  return out;
+}
+
+function judge(ans){
+  const v = $("verdict"); v.innerHTML = "";
+  if(gold === null) return;
+  const same = (ans.output || "").trim() === gold.trim();
+  const span = document.createElement("span");
+  span.className = "verdict " + (same ? "hit" : "miss");
+  span.textContent = same ? "matches the held-out answer"
+                          : "differs from the held-out answer: " + gold;
+  v.appendChild(span);
+}
+
+function showChange(ans){
+  const host = $("changed"); host.innerHTML = "";
+  // Only where a diff means something: a corrected sentence, or a filled blank.
+  if(current === "correct" && lastInput && ans.output && ans.output !== lastInput){
+    host.appendChild(diffWords(lastInput, ans.output));
+  } else if(current === "cloze" && lastInput.includes("____") && ans.output){
+    const filled = document.createElement("div");
+    filled.className = "note urdu";
+    filled.textContent = lastInput.replace("____", ans.output);
+    host.appendChild(filled);
+  }
 }
 
 function render(ans){
@@ -240,6 +322,8 @@ function render(ans){
     $("alts").appendChild(s);
   });
   if(ans.note){ $("note").textContent = ans.note; $("note").classList.remove("hidden"); }
+  judge(ans);
+  showChange(ans);
   const ev = ans.evidence || [];
   if(ev.length){
     $("evlist").innerHTML = "";
@@ -260,7 +344,8 @@ function render(ans){
 $("run").onclick = async () => {
   const t = TASKS[current]; if(!t) return;
   $("run").disabled = true; $("answer").textContent = "working…";
-  try { render(await post(t.api, {text: $("input").value})); }
+  lastInput = $("input").value;
+  try { render(await post(t.api, {text: lastInput})); }
   catch(e){ $("answer").innerHTML = '<span class="err">'+e.message+'</span>'; }
   finally { $("run").disabled = false; }
 };
@@ -271,12 +356,32 @@ $("example").onclick = async () => {
     const ex = await get("/api/example?task=" + encodeURIComponent(t.sample));
     if(ex.error){ $("gold").textContent = ex.error; return; }
     $("input").value = ex.input;
-    $("gold").textContent = "gold answer (" + ex.split + "): " + ex.gold;
+    gold = ex.gold;
+    $("gold").textContent = "held-out answer (" + ex.split + "): " + ex.gold;
     resetOutput();
   } catch(e){ $("gold").textContent = e.message; }
 };
 
-$("clear").onclick = () => { $("input").value = ""; $("gold").textContent = ""; resetOutput(); };
+$("clear").onclick = () => {
+  $("input").value = ""; $("gold").textContent = ""; gold = null; lastInput = ""; resetOutput();
+};
+
+// Typing by hand means the loaded example no longer applies.
+$("input").addEventListener("input", () => {
+  if(gold !== null){ gold = null; $("gold").textContent = ""; $("verdict").innerHTML = ""; }
+});
+
+// Ctrl+Enter runs, from the textarea or anywhere on the page.
+document.addEventListener("keydown", (e) => {
+  if((e.ctrlKey || e.metaKey) && e.key === "Enter" && current in TASKS){ $("run").click(); }
+});
+
+$("copy").onclick = async () => {
+  const text = $("answer").textContent || "";
+  try { await navigator.clipboard.writeText(text); $("copy").textContent = "Copied"; }
+  catch(e){ $("copy").textContent = "Copy failed"; }
+  setTimeout(() => { $("copy").textContent = "Copy"; }, 1500);
+};
 
 $("go-search").onclick = async () => {
   const tbl = $("search-table"), body = tbl.querySelector("tbody");
