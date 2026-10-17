@@ -177,7 +177,7 @@ their numbers in [`docs/DEFECTS.md`](docs/DEFECTS.md). The ones worth naming her
 2. **Two "disjoint" sentence pools were not disjoint.** Even corpus lines for cloze, odd for correction —
    and 114 sentences appear on both, so they became a cloze item *and* its own correction target.
    Ownership is now decided by the sentence's content hash.
-3. **Generated census lines produce identical prompts with different gold answers.** Exact-sentence
+3. **Template census lines produce identical prompts with different gold answers.** Exact-sentence
    deduplication cannot see them, because each sentence is unique; a template frame can.
 4. **The two Wikipedia extracts overlap.** The sentence tasks come from a filtered extract, the section
    task from the full dump, so 1,977 sentences sat inside a section body — 380 of them in a different

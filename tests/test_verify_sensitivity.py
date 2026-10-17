@@ -77,7 +77,7 @@ def test_cloze_answer_leak_is_caught():
     [
         ({"input": GOOD_SENT}, "no_error_introduced"),
         ({"meta": {}}, "error_type_missing"),
-        ({"input_human": True}, "corrupted_input_claimed_human"),
+        ({"input_human": True}, "modified_input_claimed_human"),
         ({"input": "یہ شہر"}, "word_count_drift"),
     ],
 )
@@ -226,7 +226,8 @@ def _corpus():
     import itertools
 
     from scribe.engine import BM25
-    from scribe.urdu import strip_marks, words as _w
+    from scribe.urdu import strip_marks
+    from scribe.urdu import words as _w
 
     c.rows = []
     c.ur2roman, c.roman2ur, c.urdu2roman_from_reverse = {}, {}, {}

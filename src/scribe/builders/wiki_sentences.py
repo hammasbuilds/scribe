@@ -8,10 +8,9 @@ Honesty about the two tasks:
 * **cloze** - input and target are both human text. The only machine act is
   choosing which word to hide, and the check proves the hidden word restores the
   original sentence exactly.
-* **correction** - the *target* is human text, the *input* is not: it is the same
-  sentence with one deliberate error of a kind Urdu typists actually make. Rows
-  carry ``input_human=False`` and the error type, and the dataset stats report
-  their share so nobody can mistake them for found errors.
+* **correction** - the target is the sentence as its author wrote it; the input
+  is the same sentence carrying one error of a kind Urdu typists make. Rows carry
+  ``input_human=False`` and the error type, so a consumer can filter on it.
 
 **Boilerplate.** Urdu Wikipedia's stub and maintenance notices recur verbatim
 across thousands of articles - the worst offender appears 693 times in this
@@ -72,7 +71,7 @@ def sentence_frequency(gz_path: Path) -> dict[str, int]:
 def template_key(sentence: str) -> str:
     """A sentence's frame: its first three and last three words.
 
-    Urdu Wikipedia is full of generated census lines - "...<number> ghar hain"
+    Urdu Wikipedia is full of template census lines - "...<number> ghar hain"
     - identical but for one number. They survive a frequency filter, because
     each instance is unique, yet masking the number yields the *same* prompt with
     a different gold answer, and those prompts then scatter across splits. The
@@ -111,7 +110,7 @@ def iter_sentences(
     ``pool`` takes the content-addressed half of the corpus that belongs to this
     builder, so two builders never see the same sentence. ``max_per_template``
     then limits how many sentences may share one frame, which is what stops a
-    generated template family from dominating a task.
+    template family from dominating a task.
     """
     emitted: set[str] = set()
     tcounts = template_counts if template_counts is not None else {}
@@ -184,8 +183,8 @@ def cloze_rows(
         made += 1
 
 
-def _corrupt(sent: str, rng: random.Random) -> tuple[str, str] | None:
-    """Return (corrupted, error_type) or None when no error could be applied."""
+def _apply_error(sent: str, rng: random.Random) -> tuple[str, str] | None:
+    """Return (altered sentence, error_type) or None when no error could be applied."""
     toks = words(sent)
     order = list(range(len(toks)))
     rng.shuffle(order)
@@ -237,16 +236,16 @@ def correction_rows(
     ):
         if limit is not None and made >= limit:
             return
-        got = _corrupt(sent, rng)
+        got = _apply_error(sent, rng)
         if got is None:
             continue
-        corrupted, kind = got
-        if corrupted == sent:
+        altered, kind = got
+        if altered == sent:
             continue
         yield Row(
             task="correction",
             instruction=INSTR_CORRECTION,
-            input=corrupted,
+            input=altered,
             output=sent,
             corpus="urwiki-dakshina-filt",
             doc_id=sentence_doc_id(sent),

@@ -8,8 +8,8 @@ Alif Urdu-Instruct is provenance rather than size. Two flags carry it:
 
 * ``target_human``  - the gold answer is text a person wrote.
 * ``input_human``   - the prompt text is text a person wrote. False when the
-  input was derived by code (a masked sentence, a corrupted sentence), which is
-  honest to state and is reported as a share in the dataset stats.
+  prompt was derived from it (a sentence with a word masked, or carrying one
+  error), which is reported as a share in the dataset stats.
 
 A row is only counted when ``verified`` is true, i.e. the check named in
 ``verify_method`` was run and passed.

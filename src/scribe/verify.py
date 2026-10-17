@@ -81,7 +81,7 @@ def check_correction(r) -> str | None:
     elif diffs != 1:
         return f"expected_one_changed_token_got_{diffs}"
     if r.get("input_human") is not False:
-        return "corrupted_input_claimed_human"
+        return "modified_input_claimed_human"
     return None
 
 

@@ -42,9 +42,9 @@ from.
 **Fix:** pool ownership is decided by the sentence's content hash (`pool_of`), so a duplicate occurrence
 always lands in the same pool. Now 0.
 
-### 4. Generated census lines produced identical prompts with different gold answers
+### 4. Template census lines produced identical prompts with different gold answers
 
-Urdu Wikipedia carries families of generated sentences differing only in a number. Masking the number
+Urdu Wikipedia carries families of template sentences differing only in a number. Masking the number
 yields the *same* prompt with a different correct answer; three such prompts were split across train,
 val and test. Exact-sentence deduplication cannot see this, because each sentence is unique.
 
@@ -139,8 +139,7 @@ sentences_also_inside_a_headline_body 0 | ..._in_another_split 0
 
 A 0.000 failure rate is normally a smell, so `tests/test_verify_sensitivity.py` plants one defect of
 each known kind — no mask, two masks, an answer still visible in the prompt, a non-Urdu answer, a
-two-edit "single" correction, a `space_split` that did not split, a corrupted input claiming to be
-human, Latin in the Urdu side, Urdu in the Roman side, a swapped direction, a heading sitting in its
+two-edit "single" correction, a `space_split` that did not split, an input claiming a provenance it does not have, Latin in the Urdu side, Urdu in the Roman side, a swapped direction, a heading sitting in its
 own body, and a sentence shared between a section body and a cloze item in another split — and asserts
 the matching check names it. 26 tests, all passing. Two of those tests initially failed because *my expectations*
 were wrong about which check fires first, not the checks.

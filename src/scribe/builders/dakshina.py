@@ -1,7 +1,7 @@
 """Transliteration items from Dakshina's human romanisations.
 
 Dakshina's romanised side was typed by people, which is the point: a model
-trained on rule-generated romanisation learns a transliteration scheme nobody
+trained on romanisation produced by rules alone learns a scheme nobody
 uses. Licence CC BY-SA 4.0, so scribe-100k inherits share-alike.
 
 **Contamination, measured not assumed.** `ur.romanized.rejoined.tsv` holds 9,759
