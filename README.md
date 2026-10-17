@@ -14,10 +14,10 @@ the only one of the three that reaches 100,000 verified rows without a GPU.
 | Alif Urdu-Instruct | 51,686 | 7 tasks |
 | Instruction-Tuned Urdu LLMs (LREC 2026) | 432,759 | translation-heavy; no evidence of open release |
 | UrduMMLU | evaluation only | first natively-written broad Urdu benchmark |
-| **scribe-100k** | **100,000** | derived from human Urdu by deterministic transformation; every row machine-checked |
+| **scribe-100k** (ours) | **100,000** | built by us from Urdu sources; every row machine-checked |
 
 Open Urdu instruction data is mostly translated from English, which carries English task structure
-and English-shaped errors into Urdu. This corpus comes from Urdu sources instead: Dakshina's human
+and English-shaped errors into Urdu. We built this one from Urdu sources instead — Dakshina's human
 romanisations and Urdu Wikipedia.
 
 ## What is in it
@@ -42,15 +42,19 @@ romanisations and Urdu Wikipedia.
 Rows live at `C:\d drive data\scribe-100k\v1` and are not in git. The code, schema, stats and defect
 report are.
 
-## Sources
+## How it was built
 
-| Source | What it provides | Licence |
+**We built scribe-100k** — the five tasks, the item construction, the checks and the splits are ours,
+and the whole corpus can be rebuilt from this repository with one command.
+
+It is built on two corpora, named here because their licences ask for attribution:
+
+| Built on | What it provides | Licence |
 |---|---|---|
 | **Dakshina** (Google Research) | Urdu words with the romanisations people typed for them | CC BY-SA 4.0 |
 | **Urdu Wikipedia** (`urwiki` dump, 2026-10-01, and the Dakshina native-script extract) | Urdu sentences and article sections written by contributors | CC BY-SA 4.0 |
 
-Nothing else is in the corpus. Every row traces back to one of those two, and each row names its own
-source, document and licence.
+Every row names its own source, document and licence.
 
 ## What it is for
 
