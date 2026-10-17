@@ -118,7 +118,7 @@ A one-off probe found this leak; leaving it as a probe would have let the next b
 
 | Limit | Why it stays | How it is disclosed |
 |---|---|---|
-| Correction inputs are machine-corrupted, not found errors | No public corpus of real Urdu typing errors at this scale exists without a budget | `input_human: false` per row, `input_human_share` in stats, error type per row |
+| Correction inputs carry an error applied by rule, not an error found in the wild | No public corpus of real Urdu typing errors at this scale exists without a budget | `input_human: false` per row, `input_human_share` in stats, error type per row |
 | Formulaic collocations make easy cloze items (`محمد صلی ____ علیہ وسلم` → اللہ) | They are genuine Urdu text, and removing religious and fixed phrases would distort the register | Per-item position and length in `meta`; a difficulty split is future work |
 | Word-level transliteration dominates the transliteration tasks | The only non-contaminated Dakshina source is the word lexicon | `meta.level` is `word` on every such row; sentence level exists only in the eval file |
 | Register skews encyclopaedic | Source is Wikipedia | `by_corpus` in stats; a news and literature slice is still future work |

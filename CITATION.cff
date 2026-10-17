@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+title: "scribe-100k and Scribe"
+message: "If you use this dataset or software, please cite it."
+type: dataset
+authors:
+  - family-names: Hammas
+    given-names: Muhammad
+    alias: hammasbuilds
+repository-code: "https://github.com/hammasbuilds/scribe"
+license: CC-BY-SA-4.0
+year: 2026
+keywords:
+  - urdu
+  - transliteration
+  - dakshina
+  - urdu-wikipedia
+references:
+  - type: data
+    title: "Dakshina dataset"
+    notes: "Urdu words with human romanisations."
+  - type: data
+    title: "Urdu Wikipedia"
+    notes: "Urdu sentences and article sections written by contributors."
