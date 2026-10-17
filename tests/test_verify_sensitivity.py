@@ -212,3 +212,112 @@ def test_audit_is_clean_when_the_passage_is_not_shared():
     rows[1]["output"] = "مضمون"
     report = audit(rows)
     assert report["sentences_also_inside_a_headline_body"] == 0
+
+
+# --- engine behaviours found by feeding it real input -----------------------
+
+
+def _corpus():
+    """A small corpus built in memory, so these tests need no dataset on disk."""
+    from scribe.engine import Corpus
+
+    c = Corpus.__new__(Corpus)
+    import collections
+    import itertools
+
+    from scribe.engine import BM25
+    from scribe.urdu import strip_marks, words as _w
+
+    c.rows = []
+    c.ur2roman, c.roman2ur, c.urdu2roman_from_reverse = {}, {}, {}
+    c.sentences = [
+        "انہوں نے طب کی تعلیم حاصل کی اور بھوپال میں طبابت کی",
+        "یہ شہر دریائے سندھ کے کنارے ایک پرانا تجارتی مرکز ہے",
+        "وہ ہر روز اسکول جاتا ہے اور شام کو کھیلتا ہے",
+    ] * 3
+    c.unigram, c.bigram = collections.Counter(), collections.Counter()
+    for s in c.sentences:
+        toks = _w(s)
+        c.unigram.update(strip_marks(t) for t in toks)
+        c.bigram.update(itertools.pairwise([strip_marks(t) for t in toks]))
+    c.vocab = {w for w, n in c.unigram.items() if n >= 2}
+    c.vocab_by_first = collections.defaultdict(list)
+    for w in c.vocab:
+        c.vocab_by_first[w[0]].append(w)
+    c.context = collections.defaultdict(collections.Counter)
+    c.after = collections.defaultdict(collections.Counter)
+    c.before = collections.defaultdict(collections.Counter)
+    for s in c.sentences:
+        toks = [strip_marks(t) for t in _w(s)]
+        for i in range(1, len(toks) - 1):
+            c.context[(toks[i - 1], toks[i + 1])][toks[i]] += 1
+        for a, b in itertools.pairwise(toks):
+            c.after[a][b] += 1
+            c.before[b][a] += 1
+    c.headline_bodies, c.headline_heads = [], []
+    c.headline_bm25 = BM25([])
+    c.sentence_bm25 = BM25([[strip_marks(t) for t in _w(s)] for s in c.sentences])
+    c.heading_freq = collections.Counter()
+    return c
+
+
+def test_corrector_joins_a_split_word():
+    """A sum over tokens rewarded keeping two fragments; the score is per token now."""
+    from scribe.engine import correct
+
+    out = correct("انہوں نے طب کی تع لیم حاصل کی", _corpus()).output
+    assert "تعلیم" in out, out
+
+
+def test_corrector_leaves_correct_text_alone():
+    from scribe.engine import correct
+
+    text = "وہ ہر روز اسکول جاتا ہے"
+    answer = correct(text, _corpus())
+    assert answer.output == text
+    assert "no change" in answer.method
+
+
+def test_cloze_answer_never_carries_sentence_punctuation():
+    """"ہے۔" is a correct token and a wrong answer."""
+    from scribe.engine import fill_blank
+
+    c = _corpus()
+    c.sentences = [s + "۔" for s in c.sentences]
+    answer = fill_blank("یہ شہر دریائے سندھ کے ____ ایک پرانا مرکز ہے", c)
+    assert "۔" not in answer.output, answer.output
+
+
+def test_cloze_reports_more_than_one_blank():
+    from scribe.engine import fill_blank
+
+    answer = fill_blank("یہ ____ شہر ____ ہے", _corpus())
+    assert "2 blanks" in answer.note, answer.note
+
+
+def test_cloze_without_a_blank_explains_itself():
+    from scribe.engine import fill_blank
+
+    answer = fill_blank("یہ جملہ مکمل ہے", _corpus())
+    assert answer.output == ""
+    assert "____" in answer.note
+
+
+def test_cloze_fallback_does_not_answer_with_a_function_word():
+    """The frequency fallback answered میں - the commonest word in the corpus."""
+    from scribe.engine import fill_blank
+    from scribe.urdu import FUNCTION_WORDS, strip_marks
+
+    answer = fill_blank("کوئی ایسا جملہ ____ جو corpus میں نہیں", _corpus())
+    if answer.output:
+        assert strip_marks(answer.output) not in FUNCTION_WORDS, answer.output
+
+
+def test_heading_query_is_capped():
+    """A 92 KB paste took 60 seconds before the query was capped."""
+    from scribe.engine import MAX_QUERY_WORDS, suggest_heading
+
+    big = "یہ ایک لمبا جملہ ہے جو بار بار دہرایا گیا ہے۔ " * 500
+    answer = suggest_heading(big, _corpus())
+    assert answer.output is not None
+    assert MAX_QUERY_WORDS <= 1000

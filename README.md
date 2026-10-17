@@ -91,11 +91,11 @@ slot is explicit in `engine.rerank_slot` rather than implied.
 
 | Task | Exact match | Second metric | Note |
 |---|---|---|---|
-| `correction` | **0.750** | 0.845 located the broken token | errors of the kinds the corpus contains |
+| `correction` | **0.825** | 0.878 located the broken token | errors of the kinds the corpus contains |
 | `translit_roman2ur` | **0.352** | — | character rules snapped to a corpus word |
 | `translit_ur2roman` | **0.230** | 0.313 any attested romanisation | lexicon covers 2.8% of test words *by design* |
+| `cloze` | **0.138** | 0.243 top-5 | 54% answered from the context index |
 | `headline` | **0.128** | 0.206 token F1 | answered by retrieval 100% of the time |
-| `cloze` | **0.098** | 0.200 top-5 | 54% answered from the context index |
 
 These are the numbers a trained arm has to beat, measured the same way. Transliteration coverage is
 near zero on purpose: the dataset splits word-level transliteration **by word**, so a test word cannot
@@ -105,6 +105,12 @@ coverage next to accuracy.
 Roman-to-Urdu scored exactly **0.000** on the first run, because the engine returned unknown words
 unchanged. Transducing every plausible reading of a Roman word and keeping the one that matches a real
 corpus word took it to 0.352 (کتاب اور قلم, حکومت نے فیصلہ کیا, عورت اور آدمی).
+
+Correction went **0.750 → 0.825** for one reason: the sentence score was a *sum* over tokens, so a
+longer sentence won on volume and a split word was never worth joining. Scoring per token fixed it.
+Cloze went **0.098 → 0.138** by consulting one-sided context when no left+right match exists, and by
+refusing to answer with a function word — the frequency fallback used to answer "میں", the commonest
+word in the corpus, to any question it could not place.
 
 ## Build it
 
@@ -156,6 +162,12 @@ Urdu. Reverted the same day.
   lead almost always opens with the title verbatim, so title prediction would be a copy task. 10,218
   candidates were rejected for having the heading verbatim in the body, and 5,314 more for having most
   of the heading's content words in it.
+- It cannot know the vowels of a word it has never seen. کتاب is *kitaab*, and a character rule
+  guesses *katab*; a two-letter prefix learned from the lexicon was tried and measured as a regression
+  (0.230 → 0.153), because short prefixes conflate unrelated words. Those answers are labelled
+  "character rules" with zero confidence rather than dressed up.
+- It cannot un-split a word whose fragments are themselves common words. "اس کو ل" could be three real
+  words or a broken اسکول, and nothing short of understanding the sentence can tell.
 - The desk does not run a model. Everything above is lookup, rules, a context index and BM25; no model
   has been trained on this corpus yet, because the GPU belongs to other work.
 - It does not export PDF. An Urdu PDF needs an embedded Nastaliq or Naskh font and right-to-left shaping

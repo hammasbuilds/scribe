@@ -33,13 +33,24 @@ from pathlib import Path
 from .schema import nfc
 from .urdu import (
     CONFUSIONS_HINT,
+    FUNCTION_WORDS,
     is_urdu_word,
     strip_marks,
+    urdu_share,
     words,
 )
 
 MASK = "____"
 DEFAULT_DATA = Path("C:/d drive data/scribe-100k/v2")
+
+# Punctuation that clings to a word in running text. Indexing "ہے۔" as a distinct
+# word let the cloze fallback answer with a sentence-final full stop in the middle
+# of a sentence, which no reader would write.
+EDGE_PUNCT = "۔،؛؟.,;:!?()[]{}\"'«»”“’‘-–—"
+
+
+def clean_token(token: str) -> str:
+    return token.strip(EDGE_PUNCT)
 
 
 @dataclass
@@ -125,6 +136,7 @@ class Corpus:
         # --- transliteration tables -------------------------------------------------
         self.ur2roman: dict[str, list[tuple[str, int]]] = {}
         self.roman2ur: dict[str, str] = {}
+        self.urdu2roman_from_reverse: dict[str, str] = {}
         for r in self.rows:
             if r["task"] == "translit_ur2roman":
                 variants = [
@@ -134,6 +146,7 @@ class Corpus:
                 self.ur2roman[r["input"]] = variants
             elif r["task"] == "translit_roman2ur":
                 self.roman2ur[r["input"]] = r["output"]
+                self.urdu2roman_from_reverse.setdefault(r["output"], r["input"])
 
         # --- sentence material ------------------------------------------------------
         self.sentences: list[str] = []
@@ -148,7 +161,7 @@ class Corpus:
         for s in self.sentences:
             toks = words(s)
             self.unigram.update(strip_marks(t) for t in toks)
-            self.bigram.update(zip((strip_marks(t) for t in toks), (strip_marks(t) for t in toks[1:])))
+            self.bigram.update(itertools.pairwise([strip_marks(t) for t in toks]))
         self.vocab = {w for w, c in self.unigram.items() if c >= 2}
         # Indexed by first letter, so snapping a guess to a real word does not scan
         # all 29k words on every request.
@@ -161,10 +174,17 @@ class Corpus:
         self.context: dict[tuple[str, str], collections.Counter] = collections.defaultdict(
             collections.Counter
         )
+        # One-sided neighbours as well as the pair: an exact left+right match is rare,
+        # but "which words follow X" and "which words precede Y" are each real evidence.
+        self.after: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+        self.before: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
         for s in self.sentences:
             toks = [strip_marks(t) for t in words(s)]
             for i in range(1, len(toks) - 1):
                 self.context[(toks[i - 1], toks[i + 1])][toks[i]] += 1
+            for a, b in itertools.pairwise(toks):
+                self.after[a][b] += 1
+                self.before[b][a] += 1
 
         # --- headline material ------------------------------------------------------
         self.headline_bodies: list[str] = []
@@ -176,6 +196,7 @@ class Corpus:
         self.headline_bm25 = BM25([[strip_marks(t) for t in words(b)] for b in self.headline_bodies])
         self.sentence_bm25 = BM25([[strip_marks(t) for t in words(s)] for s in self.sentences])
         self.heading_freq = collections.Counter(self.headline_heads)
+
 
     @property
     def stats(self) -> dict:
@@ -203,6 +224,15 @@ def transliterate_to_roman(text: str, corpus: Corpus) -> Answer:
     for tok in toks:
         key = nfc(tok)
         variants = corpus.ur2roman.get(key) or corpus.ur2roman.get(strip_marks(key))
+        if not variants:
+            # The reverse table is built from different rows, so it often holds a human
+            # romanisation for a word the forward table lacks. Consulting it turned
+            # katab (rule output) back into the attested spelling for کتاب.
+            back = corpus.urdu2roman_from_reverse.get(key) or corpus.urdu2roman_from_reverse.get(
+                strip_marks(key)
+            )
+            if back:
+                variants = [(back, 1)]
         if variants:
             out.append(variants[0][0])
             covered += 1
@@ -214,9 +244,15 @@ def transliterate_to_roman(text: str, corpus: Corpus) -> Answer:
                 }
             )
         else:
-            guess = _char_transliterate(key)
+            guess = _char_transliterate(key, corpus)
             out.append(guess)
-            evidence.append({"word": tok, "source": "character rules (word not in corpus)", "variants": []})
+            evidence.append(
+                {
+                    "word": tok,
+                    "source": "character rules (word not in corpus)",
+                    "variants": [],
+                }
+            )
     conf = covered / len(toks) if toks else 0.0
     return Answer(
         task="translit_ur2roman",
@@ -246,7 +282,7 @@ _CHAR_MAP = [
 _VOWELS = set("aeiou")
 
 
-def _char_transliterate(word: str) -> str:
+def _char_transliterate(word: str, corpus: Corpus | None = None) -> str:
     """Map an unseen Urdu word character by character, then restore short vowels.
 
     Urdu does not write short vowels, so a straight character map returns
@@ -261,6 +297,10 @@ def _char_transliterate(word: str) -> str:
     """
     s, out = strip_marks(word), []
     i = 0
+    # A two-letter prefix learned from the lexicon was tried here and measured as a
+    # regression: exact match on the test split fell 0.230 -> 0.153, because short
+    # prefixes conflate unrelated words (پا voted "par", which makes پاکستان
+    # "parkstan"). Vowel quality needs a model, not a shorter rule.
     while i < len(s):
         for src, dst in _CHAR_MAP:
             if s.startswith(src, i):
@@ -513,11 +553,25 @@ def fill_blank(sentence: str, corpus: Corpus) -> Answer:
     if MASK not in s:
         return Answer("cloze", "", "no blank found", 0.0, note=f"Put {MASK} where the word should go.")
     toks = words(s)
+    blanks = sum(1 for t in toks if MASK in t)
+    multi_note = (
+        f"The text has {blanks} blanks; only the first is filled." if blanks > 1 else ""
+    )
     i = next(j for j, t in enumerate(toks) if MASK in t)
     left = strip_marks(toks[i - 1]) if i > 0 else ""
     right = strip_marks(toks[i + 1]) if i + 1 < len(toks) else ""
 
+    def answerable(word: str) -> bool:
+        """A candidate answer must be a word, not a word carrying punctuation.
+
+        The cloze fallback answered "ہے۔" - correct as a token, wrong as an answer,
+        because the full stop belongs to the sentence, not to the missing word.
+        """
+        return bool(word) and clean_token(word) == word
+
     cands = corpus.context.get((left, right))
+    if cands:
+        cands = collections.Counter({w: c for w, c in cands.items() if answerable(w)}) or None
     if cands:
         best, count = cands.most_common(1)[0]
         total = sum(cands.values())
@@ -529,6 +583,7 @@ def fill_blank(sentence: str, corpus: Corpus) -> Answer:
             evidence=[{"left": left, "right": right, "seen": total,
                        "candidates": [{"word": w, "count": c} for w, c in cands.most_common(5)]}],
             alternatives=[w for w, _ in cands.most_common(5)[1:]],
+            note=multi_note,
         )
 
     query = [strip_marks(t) for t in toks if MASK not in t]
@@ -545,9 +600,55 @@ def fill_blank(sentence: str, corpus: Corpus) -> Answer:
                     method="BM25 neighbour sentence, same surrounding words",
                     confidence=min(0.6, score / 40),
                     evidence=[{"neighbour": neighbour, "bm25": round(score, 2)}],
+                    note=multi_note,
                 )
 
-    pool = [(w, c) for w, c in corpus.unigram.items() if c > 5 and is_urdu_word(w) and len(w) >= 3]
+    # One-sided context, before giving up on context entirely. "دار الحکومت ____ ہے"
+    # has no exact left+right match in the corpus, but the words that follow
+    # "الحکومت" and the words that precede "ہے" are both real evidence.
+    one_sided: collections.Counter = collections.Counter()
+    # Only consult a side whose context word is informative. "دار الحکومت ____ ہے"
+    # has ہے on the right, which precedes a quarter of the corpus, so letting it vote
+    # answered "جاتا" - a verb that often precedes ہے and has nothing to do with the
+    # sentence. A function word on one side means that side is simply not evidence.
+    used_sides = []
+    if left and strip_marks(left) not in FUNCTION_WORDS:
+        used_sides.append("left")
+        for w, c in corpus.after.get(left, {}).items():
+            one_sided[w] += c
+    if right and strip_marks(right) not in FUNCTION_WORDS:
+        used_sides.append("right")
+        for w, c in corpus.before.get(right, {}).items():
+            one_sided[w] += c
+    one_sided = collections.Counter(
+        {w: c for w, c in one_sided.items()
+         if is_urdu_word(w) and strip_marks(w) not in FUNCTION_WORDS and len(w) >= 3
+         and answerable(w)}
+    )
+    if one_sided:
+        best, count = one_sided.most_common(1)[0]
+        total = sum(one_sided.values())
+        return Answer(
+            task="cloze",
+            output=best,
+            method="one-sided context: words seen after the left word or before the right one",
+            confidence=min(0.4, count / total),
+            evidence=[{"left": left, "right": right, "sides_used": used_sides or ["none"],
+                       "left_matches": sum(corpus.after.get(left, {}).values()),
+                       "right_matches": sum(corpus.before.get(right, {}).values())}],
+            alternatives=[w for w, _ in one_sided.most_common(6)[1:]],
+            note=multi_note,
+        )
+
+    # Last resort: frequency. Function words are excluded - the first version of this
+    # fallback answered "میں" for "the capital of Pakistan is ____", because میں is
+    # the commonest word in the corpus and nothing filtered it out.
+    pool = [
+        (w, c)
+        for w, c in corpus.unigram.items()
+        if c > 5 and is_urdu_word(w) and len(w) >= 3 and strip_marks(w) not in FUNCTION_WORDS
+        and answerable(w)
+    ]
     pool.sort(key=lambda wc: -wc[1])
     best = pool[0][0] if pool else ""
     return Answer(
@@ -557,11 +658,14 @@ def fill_blank(sentence: str, corpus: Corpus) -> Answer:
         confidence=0.05,
         evidence=[{"left": left, "right": right, "seen": 0}],
         alternatives=[w for w, _ in pool[1:6]],
-        note="Neither the context index nor a neighbour sentence matched, so this is a frequency guess.",
+        note=(multi_note + " " if multi_note else "")
+        + "Neither the context index nor a neighbour sentence matched, so this is a frequency guess.",
     )
 
 
 _SPLIT_FIX_RE = re.compile(r"\s+")
+# What a token that is not a word in the corpus costs the sentence it sits in.
+NON_WORD_PENALTY = 6.0
 
 
 def correct(sentence: str, corpus: Corpus) -> Answer:
@@ -570,23 +674,51 @@ def correct(sentence: str, corpus: Corpus) -> Answer:
     toks = words(s)
     best: tuple[float, str, dict] | None = None
 
+    def key(token: str) -> str:
+        return strip_marks(token)
+
     def score_tokens(cand: list[str]) -> float:
-        uni = sum(math.log1p(corpus.unigram.get(strip_marks(t), 0)) for t in cand)
+        uni = sum(math.log1p(corpus.unigram.get(key(t), 0)) for t in cand)
         bi = sum(
-            math.log1p(corpus.bigram.get((strip_marks(a), strip_marks(b)), 0)) * 2
+            math.log1p(corpus.bigram.get((key(a), key(b)), 0)) * 2
             for a, b in itertools.pairwise(cand)
         )
-        return uni + bi
+        # A sum over tokens quietly rewards having more of them, so "اس کو ل" beat
+        # "اسکول": two very common words outscored one real one and the join never
+        # won. A non-word costs more than any frequency can repay.
+        # Deliberately not is_urdu_word: that needs two letters, and a split word
+        # leaves single-letter fragments - which is the case this penalty is for.
+        junk = sum(
+            NON_WORD_PENALTY
+            for t in cand
+            if urdu_share(t) > 0.5 and key(t) not in corpus.vocab
+        )
+        # Per token, not summed. A sum compares a 9-token sentence against an
+        # 8-token one and the longer one wins on volume alone, which is why
+        # "اس کو ل" kept beating "اسکول" however good the join was.
+        return (uni + bi - junk) / max(1, len(cand))
 
     baseline = score_tokens(toks)
 
-    # 1. join a word split in two
-    for i in range(len(toks) - 1):
-        cand = toks[:i] + [toks[i] + toks[i + 1]] + toks[i + 2 :]
-        if strip_marks(cand[i]) in corpus.vocab:
+    # 1. join a word split into two or three pieces. Two was not enough: a stray
+    # space inside اسکول arrives as "اس کو ل", which is three tokens.
+    for width in (2, 3):
+        for i in range(len(toks) - width + 1):
+            joined = "".join(toks[i : i + width])
+            cand = toks[:i] + [joined] + toks[i + width :]
+            if key(joined) not in corpus.vocab:
+                continue
             sc = score_tokens(cand)
             if best is None or sc > best[0]:
-                best = (sc, " ".join(cand), {"rule": "joined a split word", "from": f"{toks[i]} {toks[i+1]}", "to": cand[i]})
+                best = (
+                    sc,
+                    " ".join(cand),
+                    {
+                        "rule": f"joined a word split into {width} pieces",
+                        "from": " ".join(toks[i : i + width]),
+                        "to": joined,
+                    },
+                )
 
     # 2. undo a letter confusion
     for i, tok in enumerate(toks):
@@ -595,7 +727,7 @@ def correct(sentence: str, corpus: Corpus) -> Answer:
                 continue
             for pos in [m.start() for m in re.finditer(re.escape(src), tok)]:
                 alt = tok[:pos] + dst + tok[pos + len(src) :]
-                if strip_marks(alt) not in corpus.vocab or alt == tok:
+                if key(alt) not in corpus.vocab or alt == tok:
                     continue
                 cand = toks[:i] + [alt] + toks[i + 1 :]
                 sc = score_tokens(cand)
@@ -604,7 +736,7 @@ def correct(sentence: str, corpus: Corpus) -> Answer:
 
     # 3. undo a transposition
     for i, tok in enumerate(toks):
-        core = strip_marks(tok)
+        core = key(tok)
         for j in range(len(core) - 1):
             alt = core[:j] + core[j + 1] + core[j] + core[j + 2 :]
             if alt == core or alt not in corpus.vocab:
@@ -636,10 +768,19 @@ def correct(sentence: str, corpus: Corpus) -> Answer:
 _STOP_FOR_HEADLINE = {"میں", "سے", "کے", "کی", "کا", "اور", "ہے", "ہیں", "کو", "پر", "جو", "یہ", "تھا"}
 
 
+MAX_QUERY_WORDS = 400
+
+
 def suggest_heading(body: str, corpus: Corpus) -> Answer:
     """Heading for a passage: borrow from the most similar passage, or extract."""
     s = nfc(body)
-    query = [strip_marks(t) for t in words(s)]
+    # A heading is decided by the opening of a passage, not by all of it. Scoring
+    # every token of a 92,000-character paste took 60 seconds for no better answer.
+    query = [strip_marks(t) for t in words(s)][:MAX_QUERY_WORDS]
+    # A penalty on headings that recur across the corpus was tried here, to stop
+    # generic answers like "طریقۂ کار". It read better on one hand-picked passage and
+    # measured far worse on 400: exact match 0.128 -> 0.038, token F1 0.206 -> 0.104.
+    # Common headings are common because they are often the right answer.
     hits = rerank_slot(corpus.headline_bm25.search(query, limit=5))
     evidence = []
     for idx, score in hits:
