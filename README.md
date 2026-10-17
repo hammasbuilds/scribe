@@ -69,6 +69,43 @@ IN : ہسپتال        OUT: haspataal     accepted_outputs: haspataal, hospita
 IN : khazdaar      OUT: خضدار
 ```
 
+## The desk
+
+```
+uv run python -m scribe.app        # the Urdu desk on http://127.0.0.1:8810
+uv run python -m scribe.evaluate   # the no-model baseline on the test split
+```
+
+Five tools over the corpus, each answering with its own evidence: **correct** a sentence, **fill a
+blank**, **Urdu to Roman**, **Roman to Urdu**, and **suggest a heading** for a passage, plus a BM25
+search over the sentences behind the dataset.
+
+**Method, and why it is this.** The corpus is bounded and stable - 100,000 rows that do not change
+between builds - which is exactly the case where cache-augmented generation beats retrieval: every
+index is built once at startup (12 s for 90,016 rows) and no request touches disk. Retrieval still
+earns its place where similarity decides the answer: cloze context matching and heading suggestion run
+BM25 over the corpus. A cross-encoder reranker is the documented next step and needs a model, so the
+slot is explicit in `engine.rerank_slot` rather than implied.
+
+### Measured on the held-out test split, with no model
+
+| Task | Exact match | Second metric | Note |
+|---|---|---|---|
+| `correction` | **0.750** | 0.845 located the broken token | errors of the kinds the corpus contains |
+| `translit_roman2ur` | **0.352** | — | character rules snapped to a corpus word |
+| `translit_ur2roman` | **0.230** | 0.313 any attested romanisation | lexicon covers 2.8% of test words *by design* |
+| `headline` | **0.128** | 0.206 token F1 | answered by retrieval 100% of the time |
+| `cloze` | **0.098** | 0.200 top-5 | 54% answered from the context index |
+
+These are the numbers a trained arm has to beat, measured the same way. Transliteration coverage is
+near zero on purpose: the dataset splits word-level transliteration **by word**, so a test word cannot
+be in the train lexicon, and a lookup engine cannot win that. Saying so is the point of reporting
+coverage next to accuracy.
+
+Roman-to-Urdu scored exactly **0.000** on the first run, because the engine returned unknown words
+unchanged. Transducing every plausible reading of a Roman word and keeping the one that matches a real
+corpus word took it to 0.352 (کتاب اور قلم, حکومت نے فیصلہ کیا, عورت اور آدمی).
+
 ## Build it
 
 ```bash
@@ -119,5 +156,8 @@ Urdu. Reverted the same day.
   lead almost always opens with the title verbatim, so title prediction would be a copy task. 10,218
   candidates were rejected for having the heading verbatim in the body, and 5,314 more for having most
   of the heading's content words in it.
-- It is not yet a product. The desk UI is built against this corpus next, and no model has been trained
-  on it — the GPU belongs to other work.
+- The desk does not run a model. Everything above is lookup, rules, a context index and BM25; no model
+  has been trained on this corpus yet, because the GPU belongs to other work.
+- It does not export PDF. An Urdu PDF needs an embedded Nastaliq or Naskh font and right-to-left shaping
+  with contextual letter forms - a typesetting job, not a text container - so the desk gives you text
+  and leaves PDF to the two Latin-script products.

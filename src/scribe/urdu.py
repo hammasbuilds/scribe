@@ -133,3 +133,21 @@ def window_keys(text: str) -> set[str]:
         return {" ".join(toks)} if toks else set()
     return {" ".join(toks[i : i + WINDOW]) for i in range(len(toks) - WINDOW + 1)}
 
+
+# The letter confusions the correction engine tries to undo. Same pairs the
+# correction items are built from, stated here so the engine and the builder
+# cannot drift apart - and both directions, because a corrector sees the error,
+# not the intent.
+CONFUSIONS_HINT = (
+    ("ہ", "ھ"),
+    ("ھ", "ہ"),
+    ("ی", "ے"),
+    ("ے", "ی"),
+    ("آ", "ا"),
+    ("ا", "آ"),
+    ("ک", "ك"),
+    ("ك", "ک"),
+    ("ں", "ن"),
+    ("ن", "ں"),
+)
+

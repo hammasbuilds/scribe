@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%234338ca%27/%3E%3Ctext x=%2716%27 y=%2722%27 font-family=%27sans-serif%27 font-size=%2719%27 font-weight=%27700%27 fill=%27white%27 text-anchor=%27middle%27%3ES%3C/text%3E%3C/svg%3E">
+<title>Scribe — Urdu desk</title>
+<style>
+:root{
+  --bg:#f7f6f3; --panel:#ffffff; --ink:#1b1b1f; --muted:#5f6068; --line:#e2e0da;
+  --accent:#4338ca; --accent-ink:#ffffff; --accent-soft:#eef0fd;
+  --good:#1f6f43; --warn:#8a5a00; --bad:#9b2226; --shadow:0 1px 2px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.04);
+  --urdu:"Noto Nastaliq Urdu","Jameel Noori Nastaleeq","Noto Naskh Arabic",serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#17171a; --panel:#1f2024; --ink:#f2f2f4; --muted:#a3a4ad; --line:#303138;
+    --accent:#a5b4fc; --accent-ink:#1b1b1f; --accent-soft:#272a3a;
+    --good:#6ee7a8; --warn:#fcd34d; --bad:#fca5a5; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#17171a; --panel:#1f2024; --ink:#f2f2f4; --muted:#a3a4ad; --line:#303138;
+  --accent:#a5b4fc; --accent-ink:#1b1b1f; --accent-soft:#272a3a;
+  --good:#6ee7a8; --warn:#fcd34d; --bad:#fca5a5; --shadow:none;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{border-bottom:1px solid var(--line);background:var(--panel)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+.top{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:18px 0 14px}
+h1{font-size:21px;margin:0;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:13px}
+.chips{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.chip{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--bg)}
+nav{display:flex;gap:2px;overflow-x:auto;padding-bottom:0}
+nav button{appearance:none;border:0;background:none;color:var(--muted);font:inherit;font-size:14px;
+  padding:9px 14px;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+nav button:hover{color:var(--ink)}
+nav button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+main{padding:22px 0 60px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 10px}
+label{display:block;font-size:13px;color:var(--muted);margin:0 0 6px}
+textarea,input[type=text]{width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);
+  border-radius:9px;padding:11px 12px;font:inherit;resize:vertical}
+textarea:focus,input:focus{outline:2px solid var(--accent);outline-offset:1px}
+textarea.urdu,.urdu{font-family:var(--urdu);font-size:19px;line-height:2.1}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+button.btn{appearance:none;font:inherit;font-weight:600;border-radius:9px;padding:9px 16px;cursor:pointer;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+button.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+button.btn:hover{filter:brightness(1.05)}
+button.btn:disabled{opacity:.55;cursor:progress}
+.hint{font-size:12.5px;color:var(--muted)}
+.answer{font-size:20px;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--bg);
+  min-height:62px;word-break:break-word;white-space:pre-wrap}
+.meta{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0}
+.pill{font-size:12px;border-radius:999px;padding:3px 10px;background:var(--accent-soft);color:var(--ink);
+  border:1px solid var(--line)}
+.meter{height:6px;border-radius:999px;background:var(--line);overflow:hidden;margin-top:10px}
+.meter > i{display:block;height:100%;background:var(--accent)}
+.ev{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
+.ev h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px}
+.ev ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.ev li{font-size:13.5px;border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:var(--bg)}
+.ev .k{color:var(--muted);font-size:12px;margin-right:6px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.alt{display:inline-block;margin:4px 6px 0 0;padding:4px 9px;border:1px solid var(--line);border-radius:8px;
+  background:var(--bg);font-size:14px}
+.note{margin-top:10px;font-size:13px;color:var(--muted);border-left:3px solid var(--line);padding-left:10px}
+.err{color:var(--bad)}
+.hidden{display:none}
+footer{color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding:16px 0;background:var(--panel)}
+.themebtn{margin-left:8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="top">
+      <h1>Scribe</h1>
+      <span class="sub">Urdu desk — every answer traced to human text</span>
+      <span class="chips">
+        <span class="chip" id="chip-rows">corpus …</span>
+        <span class="chip" id="chip-model">no model · CPU only</span>
+        <button class="btn themebtn" id="theme" title="Switch light / dark">◐</button>
+      </span>
+    </div>
+    <nav id="tabs" role="tablist">
+      <button role="tab" data-tab="correct" aria-selected="true">Correct</button>
+      <button role="tab" data-tab="cloze" aria-selected="false">Fill the blank</button>
+      <button role="tab" data-tab="roman" aria-selected="false">Urdu → Roman</button>
+      <button role="tab" data-tab="urdu" aria-selected="false">Roman → Urdu</button>
+      <button role="tab" data-tab="heading" aria-selected="false">Heading</button>
+      <button role="tab" data-tab="search" aria-selected="false">Corpus search</button>
+      <button role="tab" data-tab="dataset" aria-selected="false">Dataset</button>
+      <button role="tab" data-tab="benchmark" aria-selected="false">Benchmark</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- task panels -->
+  <section id="panel-task" class="grid">
+    <div class="card">
+      <h2 id="task-title">Correct</h2>
+      <label id="task-help" for="input">Paste Urdu text with one mistake.</label>
+      <textarea id="input" class="urdu" rows="7" dir="auto" spellcheck="false"></textarea>
+      <div class="row">
+        <button class="btn primary" id="run">Run</button>
+        <button class="btn" id="example">Load held-out example</button>
+        <button class="btn" id="clear">Clear</button>
+        <span class="hint" id="gold"></span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Output</h2>
+      <div class="answer urdu" id="answer">—</div>
+      <div class="meter"><i id="conf" style="width:0%"></i></div>
+      <div class="meta" id="meta"></div>
+      <div id="alts"></div>
+      <div class="note hidden" id="note"></div>
+      <div class="ev hidden" id="evidence"><h3>Evidence</h3><ul id="evlist"></ul></div>
+    </div>
+  </section>
+
+  <!-- search -->
+  <section id="panel-search" class="card hidden">
+    <h2>Corpus search</h2>
+    <label for="q">Search the sentences behind the dataset (BM25).</label>
+    <input type="text" id="q" class="urdu" dir="auto" placeholder="پاکستان">
+    <div class="row"><button class="btn primary" id="go-search">Search</button>
+      <span class="hint" id="search-count"></span></div>
+    <table id="search-table" class="hidden"><thead><tr><th>Sentence</th><th>BM25</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <!-- dataset -->
+  <section id="panel-dataset" class="card hidden">
+    <h2>Dataset</h2>
+    <div id="dataset-body">loading…</div>
+  </section>
+
+  <!-- benchmark -->
+  <section id="panel-benchmark" class="card hidden">
+    <h2>Baseline on the held-out test split</h2>
+    <p class="hint">No model, no GPU: lexicon lookup, a context index, rule candidates scored on corpus
+      evidence, and BM25 retrieval. These are the numbers a trained arm has to beat.</p>
+    <div id="benchmark-body">loading…</div>
+  </section>
+</main>
+
+<footer><div class="wrap">
+  Scribe · corpus licensed CC BY-SA 4.0 (Dakshina, Urdu Wikipedia) · answers show their own evidence
+</div></footer>
+
+<script>
+const TASKS = {
+  correct: {title:"Correct", help:"Paste Urdu text with one mistake. The desk proposes a single edit and shows why.",
+            api:"/api/correct", sample:"correction", rtl:true,
+            seed:"اس ناول میں لیونارڈ برصغیر پاک و ہند مےں آجاتا ہے"},
+  cloze:   {title:"Fill the blank", help:"Write ____ where a word is missing.", api:"/api/cloze",
+            sample:"cloze", rtl:true, seed:"یہ شہر دریائے سندھ کے ____ آباد ہے"},
+  roman:   {title:"Urdu → Roman", help:"Urdu text in, Roman Urdu out — using romanisations people actually typed.",
+            api:"/api/translit/roman", sample:"translit_ur2roman", rtl:true, seed:"ہسپتال میں ڈاکٹر موجود ہیں"},
+  urdu:    {title:"Roman → Urdu", help:"Roman Urdu in, Urdu script out.", api:"/api/translit/urdu",
+            sample:"translit_roman2ur", rtl:false, seed:"hukoomat ne faisla kiya"},
+  heading: {title:"Heading", help:"Paste a passage; the desk suggests a heading for it.", api:"/api/heading",
+            sample:"headline", rtl:true,
+            seed:"الجزائر کا زیادہ تر ساحلی علاقہ پتھریلا اور چٹانی ہے اور کہیں کہیں پہاڑ بھی ملتے ہیں۔ تاہم یہاں کئی قدرتی بندرگاہیں بھی موجود ہیں۔ ساحل سے لے کر اطلس التلی تک کا علاقہ زرخیز ہے۔"}
+};
+let current = "correct";
+const $ = (id) => document.getElementById(id);
+
+async function post(url, body){
+  const r = await fetch(url, {method:"POST", headers:{"Content-Type":"application/json"},
+                             body: JSON.stringify(body||{})});
+  if(!r.ok){ const t = await r.text(); throw new Error(t.slice(0,300) || r.status); }
+  return r.json();
+}
+async function get(url){
+  const r = await fetch(url);
+  if(!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+function showTab(tab){
+  current = tab;
+  document.querySelectorAll('#tabs button').forEach(b =>
+    b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  const isTask = tab in TASKS;
+  $("panel-task").classList.toggle("hidden", !isTask);
+  $("panel-search").classList.toggle("hidden", tab !== "search");
+  $("panel-dataset").classList.toggle("hidden", tab !== "dataset");
+  $("panel-benchmark").classList.toggle("hidden", tab !== "benchmark");
+  if(isTask){
+    const t = TASKS[tab];
+    $("task-title").textContent = t.title;
+    $("task-help").textContent = t.help;
+    $("input").classList.toggle("urdu", t.rtl);
+    $("input").value = t.seed || "";
+    $("gold").textContent = "";
+    resetOutput();
+  }
+  if(tab === "dataset") loadDataset();
+  if(tab === "benchmark") loadBenchmark();
+}
+
+function resetOutput(){
+  $("answer").textContent = "—";
+  $("conf").style.width = "0%";
+  $("meta").innerHTML = "";
+  $("alts").innerHTML = "";
+  $("note").classList.add("hidden");
+  $("evidence").classList.add("hidden");
+  $("evlist").innerHTML = "";
+}
+
+function render(ans){
+  $("answer").textContent = ans.output || "(no answer)";
+  $("answer").classList.toggle("urdu", current !== "roman");
+  $("conf").style.width = Math.round(100*(ans.confidence||0)) + "%";
+  $("meta").innerHTML = "";
+  const pills = [["method", ans.method], ["confidence", (ans.confidence*100).toFixed(0)+"%"]];
+  for(const [k,v] of pills){
+    if(!v) continue;
+    const s = document.createElement("span");
+    s.className = "pill"; s.textContent = k + ": " + v;
+    $("meta").appendChild(s);
+  }
+  $("alts").innerHTML = "";
+  (ans.alternatives||[]).forEach(a => {
+    const s = document.createElement("span"); s.className = "alt urdu"; s.textContent = a;
+    $("alts").appendChild(s);
+  });
+  if(ans.note){ $("note").textContent = ans.note; $("note").classList.remove("hidden"); }
+  const ev = ans.evidence || [];
+  if(ev.length){
+    $("evlist").innerHTML = "";
+    ev.slice(0,8).forEach(item => {
+      const li = document.createElement("li");
+      for(const [k,v] of Object.entries(item)){
+        const kk = document.createElement("span"); kk.className = "k"; kk.textContent = k;
+        const vv = document.createElement("span");
+        vv.textContent = typeof v === "object" ? JSON.stringify(v) : String(v);
+        li.appendChild(kk); li.appendChild(vv); li.appendChild(document.createElement("br"));
+      }
+      $("evlist").appendChild(li);
+    });
+    $("evidence").classList.remove("hidden");
+  }
+}
+
+$("run").onclick = async () => {
+  const t = TASKS[current]; if(!t) return;
+  $("run").disabled = true; $("answer").textContent = "working…";
+  try { render(await post(t.api, {text: $("input").value})); }
+  catch(e){ $("answer").innerHTML = '<span class="err">'+e.message+'</span>'; }
+  finally { $("run").disabled = false; }
+};
+
+$("example").onclick = async () => {
+  const t = TASKS[current]; if(!t) return;
+  try{
+    const ex = await get("/api/example?task=" + encodeURIComponent(t.sample));
+    if(ex.error){ $("gold").textContent = ex.error; return; }
+    $("input").value = ex.input;
+    $("gold").textContent = "gold answer (" + ex.split + "): " + ex.gold;
+    resetOutput();
+  } catch(e){ $("gold").textContent = e.message; }
+};
+
+$("clear").onclick = () => { $("input").value = ""; $("gold").textContent = ""; resetOutput(); };
+
+$("go-search").onclick = async () => {
+  const tbl = $("search-table"), body = tbl.querySelector("tbody");
+  try{
+    const r = await post("/api/search", {query: $("q").value, limit: 12});
+    body.innerHTML = "";
+    r.hits.forEach(h => {
+      const tr = document.createElement("tr");
+      const td1 = document.createElement("td"); td1.className = "urdu"; td1.textContent = h.sentence;
+      const td2 = document.createElement("td"); td2.className = "num"; td2.textContent = h.bm25;
+      tr.appendChild(td1); tr.appendChild(td2); body.appendChild(tr);
+    });
+    $("search-count").textContent = r.hits.length + " of " + r.searched.toLocaleString() + " sentences";
+    tbl.classList.remove("hidden");
+  } catch(e){ $("search-count").textContent = e.message; }
+};
+
+function table(rows, head){
+  const t = document.createElement("table");
+  if(head){
+    const tr = document.createElement("tr");
+    head.forEach(h => { const th = document.createElement("th"); th.textContent = h; tr.appendChild(th); });
+    const thead = document.createElement("thead"); thead.appendChild(tr); t.appendChild(thead);
+  }
+  const tb = document.createElement("tbody");
+  rows.forEach(r => {
+    const tr = document.createElement("tr");
+    r.forEach((c,i) => { const td = document.createElement("td");
+      if(i) td.className = "num"; td.textContent = c; tr.appendChild(td); });
+    tb.appendChild(tr);
+  });
+  t.appendChild(tb); return t;
+}
+
+async function loadDataset(){
+  const el = $("dataset-body"); el.textContent = "loading…";
+  try{
+    const s = await get("/api/stats");
+    el.innerHTML = "";
+    const d = s.dataset || {};
+    el.appendChild(table([
+      ["rows", (d.rows||0).toLocaleString()],
+      ["source documents", (d.source_documents||0).toLocaleString()],
+      ["gold answers written by a person", ((d.target_human_share||0)*100).toFixed(0)+"%"],
+      ["prompts written by a person", ((d.input_human_share||0)*100).toFixed(0)+"%"],
+      ["licence", d.licence||"—"],
+    ], ["dataset","value"]));
+    el.appendChild(table(Object.entries(d.by_task||{}).map(([k,v]) => [k, v.toLocaleString()]), ["task","rows"]));
+    el.appendChild(table(Object.entries(d.by_split||{}).map(([k,v]) => [k, v.toLocaleString()]), ["split","rows"]));
+    el.appendChild(table(Object.entries(s.corpus||{}).map(([k,v]) => [k, String(v)]), ["loaded index","size"]));
+  } catch(e){ el.innerHTML = '<span class="err">'+e.message+'</span>'; }
+}
+
+async function loadBenchmark(){
+  const el = $("benchmark-body"); el.textContent = "loading…";
+  try{
+    const b = await get("/api/benchmark");
+    el.innerHTML = "";
+    if(b.note){ el.textContent = b.note; return; }
+    const rows = [];
+    for(const [task, m] of Object.entries(b)){
+      if(task.startsWith("_")) continue;
+      rows.push([task, m.items, fmt(m.exact_match), fmt(m.top5_match ?? m.any_attested_match),
+                 fmt(m.token_f1 ?? m.located_the_broken_token ?? m.lexicon_coverage)]);
+    }
+    el.appendChild(table(rows, ["task","items","exact match","2nd metric","3rd metric"]));
+    const meta = b._meta || {};
+    const p = document.createElement("p"); p.className = "note";
+    p.textContent = meta.methodology || "";
+    el.appendChild(p);
+    const p2 = document.createElement("p"); p2.className = "hint";
+    p2.textContent = "split: " + (meta.split||"?") + " · rows evaluated: " + (meta.rows_evaluated||0)
+      + " · model used: " + (meta.model_used === null ? "none" : meta.model_used);
+    el.appendChild(p2);
+  } catch(e){ el.innerHTML = '<span class="err">'+e.message+'</span>'; }
+}
+const fmt = (v) => (v === null || v === undefined) ? "—" : (typeof v === "number" ? v.toFixed(3) : String(v));
+
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+$("theme").onclick = () => {
+  const now = document.documentElement.getAttribute("data-theme");
+  const next = now === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("scribe-theme", next); } catch(e){}
+};
+try { const t = localStorage.getItem("scribe-theme"); if(t) document.documentElement.setAttribute("data-theme", t); } catch(e){}
+
+get("/api/stats").then(s => {
+  $("chip-rows").textContent = (s.corpus.rows_loaded||0).toLocaleString() + " rows indexed";
+}).catch(() => { $("chip-rows").textContent = "corpus unavailable"; });
+
+showTab("correct");
+</script>
+</body>
+</html>
