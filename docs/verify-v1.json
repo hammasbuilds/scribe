@@ -1,0 +1,18 @@
+{
+  "rows_read": 100000,
+  "rows_checked": 100000,
+  "rows_unchecked_no_check_defined": {},
+  "checked_per_task": {
+    "translit_ur2roman": 17231,
+    "translit_roman2ur": 14102,
+    "cloze": 38667,
+    "correction": 30000
+  },
+  "failures": {},
+  "failure_rate": 0.0,
+  "duplicate_row_ids": 0,
+  "identical_input_in_two_splits": 0,
+  "documents_in_two_splits": 0,
+  "wiki_sentences_feeding_both_cloze_and_correction": 0,
+  "distinct_inputs": 100000
+}

@@ -1,0 +1,106 @@
+{
+  "rows": 100000,
+  "target": 100000,
+  "source_documents": 85898,
+  "unique_row_ids": 100000,
+  "verified_rows": 100000,
+  "target_human_share": 1.0,
+  "input_human_share": 0.7,
+  "by_task": {
+    "translit_ur2roman": 17231,
+    "translit_roman2ur": 14102,
+    "cloze": 38667,
+    "correction": 30000
+  },
+  "achieved_share_vs_cap": {
+    "translit_ur2roman": {
+      "share": 0.1723,
+      "cap": 0.175,
+      "ceiling": 0.175,
+      "within_ceiling": true
+    },
+    "translit_roman2ur": {
+      "share": 0.141,
+      "cap": 0.15,
+      "ceiling": 0.15,
+      "within_ceiling": true
+    },
+    "cloze": {
+      "share": 0.3867,
+      "cap": 0.375,
+      "ceiling": 0.42,
+      "within_ceiling": true
+    },
+    "correction": {
+      "share": 0.3,
+      "cap": 0.3,
+      "ceiling": 0.34,
+      "within_ceiling": true
+    }
+  },
+  "by_split": {
+    "train": 90155,
+    "val": 6923,
+    "test": 2922
+  },
+  "by_split_share": {
+    "train": 0.9015,
+    "val": 0.0692,
+    "test": 0.0292
+  },
+  "split_doc_overlap": {
+    "documents_in_multiple_splits": 0,
+    "examples": []
+  },
+  "by_corpus": {
+    "dakshina": 31333,
+    "urwiki-dakshina-filt": 68667
+  },
+  "corpus_pool": {
+    "wiki_usable_sentence_instances": 361986,
+    "wiki_distinct_usable_sentences": 353937,
+    "wiki_boilerplate_sentences_dropped": 183,
+    "wiki_boilerplate_instances_dropped": 2860,
+    "wiki_boilerplate_max_repeats": 693,
+    "wiki_boilerplate_threshold": 3
+  },
+  "candidates_seen_per_builder": {
+    "dakshina_lexicon": 31333,
+    "wiki_cloze": 171651,
+    "wiki_cloze:duplicate_prompt_or_row": 2,
+    "wiki_correction": 170705,
+    "topup_cloze": 171651,
+    "topup_cloze:duplicate_prompt_or_row": 37502
+  },
+  "rows_per_builder": {
+    "dakshina_lexicon": 31333,
+    "wiki_cloze": 37500,
+    "wiki_correction": 30000,
+    "topped_up": {
+      "cloze": 1167
+    }
+  },
+  "correction_error_types": {
+    "confusion:ا->آ": 2293,
+    "space_split": 8582,
+    "confusion:ی->ے": 3989,
+    "transpose": 10763,
+    "confusion:ے->ی": 1881,
+    "confusion:ھ->ہ": 728,
+    "confusion:ک->ك": 176,
+    "confusion:ہ->ھ": 1476,
+    "confusion:ں->ن": 98,
+    "confusion:آ->ا": 14
+  },
+  "eval_only_rows": 15436,
+  "dakshina_heldout_sentences": 9631,
+  "caps": {
+    "translit_ur2roman": 0.175,
+    "translit_roman2ur": 0.15,
+    "cloze": 0.375,
+    "correction": 0.3,
+    "headline": 0.25
+  },
+  "licence": "CC BY-SA 4.0 (inherited from Dakshina and Urdu Wikipedia)",
+  "model_in_label_path": false
+}
