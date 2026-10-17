@@ -39,8 +39,10 @@ romanisations and Urdu Wikipedia.
   kept out of the splits because they are Dakshina's own held-out set.
 - Licence **CC BY-SA 4.0**, inherited from its sources.
 
-Rows live at `C:\d drive data\scribe-100k\v1` and are not in git. The code, schema, stats and defect
-report are.
+**The dataset itself is on Kaggle:** https://www.kaggle.com/datasets/muhammadhammas13/scribe-100k
+
+It is not in this repository. This repository is the code that builds it, verifies it and reads it;
+the rows, the splits and the evaluation file live on Kaggle.
 
 ## How it was built
 
