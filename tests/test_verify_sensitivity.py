@@ -218,6 +218,8 @@ def test_audit_is_clean_when_the_passage_is_not_shared():
 
 
 def _corpus():
+    import pathlib
+
     """A small corpus built in memory, so these tests need no dataset on disk."""
     from scribe.engine import Corpus
 
@@ -230,6 +232,9 @@ def _corpus():
     from scribe.urdu import words as _w
 
     c.rows = []
+    # build_app reads the data directory for examples, stats and the baseline;
+    # pointing it at nothing keeps these tests independent of the dataset on disk.
+    c.data_dir = pathlib.Path("tests") / "no-such-dataset"
     c.ur2roman, c.roman2ur, c.urdu2roman_from_reverse = {}, {}, {}
     c.sentences = [
         "انہوں نے طب کی تعلیم حاصل کی اور بھوپال میں طبابت کی",
@@ -322,3 +327,38 @@ def test_heading_query_is_capped():
     answer = suggest_heading(big, _corpus())
     assert answer.output is not None
     assert MAX_QUERY_WORDS <= 1000
+
+
+# --- the batch endpoint -----------------------------------------------------
+
+
+def test_batch_runs_every_line_and_counts_the_changes():
+    """A desk that answers one sentence at a time is a demonstration; a person
+    correcting a document has three hundred of them."""
+    from scribe.app import build_app
+
+    app = build_app(_corpus(), examples_split="val")
+    handler = app.routes["/api/batch"]
+    out = handler({"task": "correct", "text": "انہوں نے طب کی تع لیم حاصل کی\nوہ ہر روز اسکول جاتا ہے\n\n"})
+    assert out["lines_given"] == 2
+    assert out["lines_done"] == 2
+    assert len(out["rows"]) == 2
+    assert any(r["changed"] for r in out["rows"]), out["rows"]
+    assert any(not r["changed"] for r in out["rows"]), "a correct line must be left alone"
+
+
+def test_batch_caps_the_work_and_says_what_was_left():
+    from scribe.app import build_app
+
+    app = build_app(_corpus(), examples_split="val")
+    handler = app.routes["/api/batch"]
+    out = handler({"task": "correct", "text": "\n".join(["وہ ہر روز اسکول جاتا ہے"] * 12), "limit": 5})
+    assert out["lines_done"] == 5
+    assert out["lines_skipped"] == 7, "the caller has to be told what was not done"
+
+
+def test_batch_rejects_an_unknown_task():
+    from scribe.app import build_app
+
+    app = build_app(_corpus(), examples_split="val")
+    assert "error" in app.routes["/api/batch"]({"task": "nonsense", "text": "x"})

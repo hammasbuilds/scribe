@@ -25,6 +25,9 @@ from .engine import (
 from .web import App
 
 UI_DIR = Path(__file__).resolve().parent.parent.parent / "ui"
+# How many lines one batch request will do. Beyond this the caller is told what
+# was left rather than being made to wait.
+MAX_BATCH_LINES = 300
 
 
 def build_app(corpus: Corpus, *, examples_split: str = "val") -> App:
@@ -103,6 +106,49 @@ def build_app(corpus: Corpus, *, examples_split: str = "val") -> App:
     @app.route("/api/heading")
     def _heading(payload: dict) -> dict:
         return suggest_heading(_text(payload), corpus).to_dict()
+
+    @app.route("/api/batch")
+    def _batch(payload: dict) -> dict:
+        """Run one task over many lines at once.
+
+        A desk that answers one sentence at a time is a demonstration; a person
+        correcting a document has three hundred of them. The work is the same per
+        line, so this caps the number of lines rather than the time: a caller
+        gets a clear limit instead of a request that quietly takes four minutes.
+        """
+        task = payload.get("task") or "correct"
+        runner = {
+            "correct": correct,
+            "cloze": fill_blank,
+            "roman": transliterate_to_roman,
+            "urdu": transliterate_to_urdu,
+            "heading": suggest_heading,
+        }.get(task)
+        if runner is None:
+            return {"error": f"unknown task {task!r}"}
+
+        raw = payload.get("text") or ""
+        lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+        limit = int(payload.get("limit", MAX_BATCH_LINES))
+        over = max(0, len(lines) - limit)
+        rows = []
+        for line in lines[:limit]:
+            answer = runner(line, corpus)
+            rows.append({
+                "input": line,
+                "output": answer.output,
+                "method": answer.method,
+                "confidence": round(answer.confidence, 3),
+                "changed": answer.output.strip() != line.strip(),
+            })
+        return {
+            "task": task,
+            "rows": rows,
+            "lines_given": len(lines),
+            "lines_done": len(rows),
+            "lines_skipped": over,
+            "changed": sum(1 for r in rows if r["changed"]),
+        }
 
     @app.route("/api/search")
     def _search(payload: dict) -> dict:

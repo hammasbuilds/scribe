@@ -113,6 +113,7 @@ footer{color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padd
       <button role="tab" data-tab="roman" aria-selected="false">Urdu → Roman</button>
       <button role="tab" data-tab="urdu" aria-selected="false">Roman → Urdu</button>
       <button role="tab" data-tab="heading" aria-selected="false">Heading</button>
+      <button role="tab" data-tab="batch" aria-selected="false">Batch</button>
       <button role="tab" data-tab="search" aria-selected="false">Corpus search</button>
       <button role="tab" data-tab="dataset" aria-selected="false">Dataset</button>
       <button role="tab" data-tab="benchmark" aria-selected="false">Benchmark</button>
@@ -145,6 +146,31 @@ footer{color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padd
       <div class="note hidden" id="note"></div>
       <div class="ev hidden" id="evidence"><h3>Evidence</h3><ul id="evlist"></ul></div>
     </div>
+  </section>
+
+  <!-- batch -->
+  <section id="panel-batch" class="card hidden">
+    <h2>Batch</h2>
+    <label for="batch-task">Task to run over every line</label>
+    <select id="batch-task">
+      <option value="correct">Correct</option>
+      <option value="cloze">Fill the blank</option>
+      <option value="roman">Urdu → Roman</option>
+      <option value="urdu">Roman → Urdu</option>
+      <option value="heading">Heading</option>
+    </select>
+    <label for="batch-input">One item per line</label>
+    <textarea id="batch-input" class="urdu" rows="7" dir="auto" spellcheck="false"></textarea>
+    <div class="row">
+      <button class="btn primary" id="batch-run">Run the batch</button>
+      <button class="btn" id="batch-fill">Fill with held-out lines</button>
+      <button class="btn" id="batch-csv">Download CSV</button>
+      <span class="hint" id="batch-note"></span>
+    </div>
+    <table id="batch-table" class="hidden">
+      <thead><tr><th>#</th><th>Input</th><th>Output</th><th>Changed</th><th>Conf.</th></tr></thead>
+      <tbody></tbody>
+    </table>
   </section>
 
   <!-- search -->
@@ -216,6 +242,7 @@ function showTab(tab){
     b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   const isTask = tab in TASKS;
   $("panel-task").classList.toggle("hidden", !isTask);
+  $("panel-batch").classList.toggle("hidden", tab !== "batch");
   $("panel-search").classList.toggle("hidden", tab !== "search");
   $("panel-dataset").classList.toggle("hidden", tab !== "dataset");
   $("panel-benchmark").classList.toggle("hidden", tab !== "benchmark");
@@ -382,6 +409,72 @@ $("copy").onclick = async () => {
   try { await navigator.clipboard.writeText(text); $("copy").textContent = "Copied"; }
   catch(e){ $("copy").textContent = "Copy failed"; }
   setTimeout(() => { $("copy").textContent = "Copy"; }, 1500);
+};
+
+let batchRows = [];
+
+$("batch-fill").onclick = async () => {
+  // Real held-out lines, so a batch can be judged rather than admired.
+  const task = $("batch-task").value;
+  const sample = {correct:"correction", cloze:"cloze", roman:"translit_ur2roman",
+                  urdu:"translit_roman2ur", heading:"headline"}[task];
+  $("batch-fill").disabled = true;
+  try{
+    const lines = [];
+    for(let i = 0; i < 8; i++){
+      const ex = await get("/api/example?task=" + encodeURIComponent(sample));
+      if(ex && ex.input) lines.push(ex.input.replace(/\s+/g, " "));
+    }
+    $("batch-input").value = lines.join("\n");
+    $("batch-note").textContent = lines.length + " held-out lines loaded";
+  } catch(e){ $("batch-note").textContent = e.message; }
+  finally{ $("batch-fill").disabled = false; }
+};
+
+$("batch-run").onclick = async () => {
+  $("batch-run").disabled = true;
+  $("batch-note").textContent = "working…";
+  try{
+    const r = await post("/api/batch", {task: $("batch-task").value, text: $("batch-input").value});
+    if(r.error){ $("batch-note").textContent = r.error; return; }
+    batchRows = r.rows || [];
+    const body = $("batch-table").querySelector("tbody");
+    body.innerHTML = "";
+    batchRows.forEach((row, i) => {
+      const tr = document.createElement("tr");
+      const cells = [String(i + 1), row.input, row.output, row.changed ? "yes" : "no",
+                     (row.confidence ?? 0).toFixed(2)];
+      cells.forEach((c, j) => {
+        const td = document.createElement("td");
+        if(j === 1 || j === 2) td.className = "urdu";
+        if(j === 0 || j === 4) td.className = "num";
+        td.textContent = c;
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+    $("batch-table").classList.remove("hidden");
+    $("batch-note").textContent = r.lines_done + " of " + r.lines_given + " lines · "
+      + r.changed + " changed"
+      + (r.lines_skipped ? " · " + r.lines_skipped + " left over the limit" : "");
+  } catch(e){ $("batch-note").textContent = e.message; }
+  finally{ $("batch-run").disabled = false; }
+};
+
+$("batch-csv").onclick = () => {
+  if(!batchRows.length){ $("batch-note").textContent = "Run a batch first."; return; }
+  // Quote every field: Urdu text carries commas, and a bare join would split rows.
+  const esc = (v) => '"' + String(v).replace(/"/g, '""') + '"';
+  const head = ["input","output","method","confidence","changed"].map(esc).join(",");
+  const lines = batchRows.map(r => [r.input, r.output, r.method, r.confidence, r.changed].map(esc).join(","));
+  // The BOM makes Excel read the Urdu as UTF-8 instead of mojibake.
+  const blob = new Blob(["\ufeff" + [head].concat(lines).join("\r\n")],
+                        {type: "text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "scribe-batch-" + $("batch-task").value + ".csv";
+  document.body.appendChild(a); a.click(); a.remove();
+  $("batch-note").textContent = "downloaded " + a.download + " (" + batchRows.length + " rows)";
 };
 
 $("go-search").onclick = async () => {
