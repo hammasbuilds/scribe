@@ -1,3 +1,8 @@
+> **This repository has moved.** Scribe is now project [`projects/p01_scribe`](https://github.com/hammasbuilds/nlp-legal-agentops/tree/main/projects/p01_scribe) of [**nlp-legal-agentops**](https://github.com/hammasbuilds/nlp-legal-agentops), together with the other two products it was
+> built alongside. That repository has the current code, the measured numbers, a
+> screenshot of every feature and a recorded walkthrough. This one is kept for its
+> history and is no longer updated.
+
 # Scribe
 
 An Urdu writing and comprehension desk, and `scribe-100k` — the dataset it is built on: **100,000
